@@ -12,8 +12,31 @@ An Android app for putting [Homebox](https://github.com/sysadminsmedia/homebox) 
   field if they were missing. The screen also lists the tagged items Homebox expects here that you
   haven't scanned. If you scan another location tag (say a box set up as a location), you can switch
   to it or put that box inside the previous location.
-- **Fix tag**: tap a tag that already holds a URL. If it doesn't have an Android Application Record (AAR)
-  for Chrome yet, the app adds one in the same tap, keeping the URL and anything else on the tag.
+- **Read tag**: tap any tag to see what it holds. For a Homebox tag, that's the entry's name, where
+  it is, and its **NFC Tag** and **Location verified** fields (from Homebox if it's reachable,
+  otherwise from the saved data). For anything else, a plain list of the tag's records, its type and
+  how full it is. Read tag doesn't change tags; it just notes anything Fix tag would fix. A switch
+  on the screen ("Fix tags as they're read") does the fixing as you read, if you'd rather.
+- **Fix tag**: tap tags to bring them up to date in one go: an old Homebox address is switched to the
+  current one and the Android Application Record (AAR) is added if it's missing. Everything else
+  on the tag is kept.
+
+## Moving Homebox to a new address
+
+Change the address in Settings and the old one is remembered under **Previous addresses** (you can
+also add or remove addresses there by hand). Whenever Write one tag, Batch write, Inventory or Fix
+tag reads a tag that links to a previous address, it rewrites the link to the current address in
+the same tap and keeps the tag's other records. Read tag only points it out, unless its fix switch
+is on. Locked tags, or tags too small for the new link, are left alone and the app says so.
+
+## Reading names aloud
+
+Batch write, Inventory and Read tag can say the entry's name, so you can find the next thing without
+looking at the screen. Switch it on with the speaker button on each screen, or in Settings. Names are
+shortened to a quick cue: leading words like "box" or "bin" are skipped, reading stops at the first
+symbol, and long names stop at the last whole word within 20 characters, so
+"Box 12 - Christmas lights" is read as "12". All of this can be changed in Settings, where you can
+also try a name to hear how it comes out. It uses the phone's text-to-speech engine.
 
 ## Works without a connection
 

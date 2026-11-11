@@ -17,6 +17,8 @@ class HomeboxNfcApplication : Application() {
         private set
     lateinit var store: HomeboxStore
         private set
+    lateinit var speaker: Speaker
+        private set
     lateinit var feedback: Feedback
         private set
 
@@ -27,6 +29,7 @@ class HomeboxNfcApplication : Application() {
         homebox = HomeboxClient(this, prefs, secrets)
         store = HomeboxStore(this, prefs, homebox)
         feedback = Feedback(this)
+        speaker = Speaker(this, prefs)
 
         // While the app is running, send queued changes as soon as a network shows up.
         // (When it isn't running, SyncWorker takes care of it.)

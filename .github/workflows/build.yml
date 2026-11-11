@@ -45,7 +45,7 @@ jobs:
             BASE=$(grep "^appVersion=" gradle.properties | cut -d= -f2)
             VERSION_NAME="${BASE}-dev.${GITHUB_RUN_NUMBER}"
           fi
-          ./gradlew assembleRelease -PversionName="$VERSION_NAME" -PversionCode="$GITHUB_RUN_NUMBER"
+          ./gradlew testReleaseUnitTest assembleRelease -PversionName="$VERSION_NAME" -PversionCode="$GITHUB_RUN_NUMBER"
           mv app/build/outputs/apk/release/app-release.apk "homebox-nfc-${VERSION_NAME}.apk"
 
       - uses: actions/upload-artifact@v4

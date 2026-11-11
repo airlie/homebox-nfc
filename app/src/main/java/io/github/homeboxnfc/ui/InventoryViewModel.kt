@@ -5,6 +5,7 @@ import android.nfc.Tag
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.homeboxnfc.HomeboxNfcApplication
+import io.github.homeboxnfc.SpeakMode
 import io.github.homeboxnfc.data.WorkingView
 import io.github.homeboxnfc.homebox.TreeNode
 import io.github.homeboxnfc.nfc.NfcTags
@@ -68,6 +69,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     private val store = app.store
     private val keys = AtomicLong()
 
+    /** Set while handling a tag whose old Homebox address was just updated; added to the next message. */
+    @Volatile private var updateNote = ""
+
     private val _ui = MutableStateFlow(InventoryUi())
     val ui: StateFlow<InventoryUi> = _ui.asStateFlow()
 
@@ -120,6 +124,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         }
         log(InvEntry(keys.incrementAndGet(), "Location: ${loc.name}", loc.path, InvOutcome.LOCATION))
         say("Now at ${loc.name}. Scan items.", MessageKind.INFO)
+        if (viaScan) app.speaker.speak(SpeakMode.INVENTORY, loc.name)
     }
 
     // ---- scanning -----------------------------------------------------------------------
@@ -127,13 +132,15 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     /** Called on the NFC thread. */
     fun onTag(tag: Tag) {
         val uid = NfcTags.uid(tag)
-        val url = try {
-            NfcTags.read(tag).url
+        val read = try {
+            readTag(app, tag)
         } catch (e: TagException) {
             app.feedback.error()
             say(e.message.orEmpty(), MessageKind.ERROR)
             return
         }
+        val url = read.url
+        updateNote = read.note
         if (url == null) {
             app.feedback.error()
             say("That tag has no URL.", MessageKind.WARNING)
@@ -205,6 +212,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             )
         )
         _ui.update { it.copy(found = it.found + id) }
+        app.speaker.speak(SpeakMode.INVENTORY, name)
 
         if (inPlace) {
             app.feedback.success()
@@ -265,5 +273,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun log(entry: InvEntry) = _ui.update { it.copy(log = (listOf(entry) + it.log).take(200)) }
 
-    private fun say(message: String, kind: MessageKind) = _ui.update { it.copy(message = message, messageKind = kind) }
+    private fun say(message: String, kind: MessageKind) {
+        val note = updateNote
+        updateNote = ""
+        _ui.update { it.copy(message = message + note, messageKind = kind) }
+    }
 }

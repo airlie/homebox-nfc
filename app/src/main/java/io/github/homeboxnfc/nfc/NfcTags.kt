@@ -23,6 +23,8 @@ data class TagSnapshot(
     val maxSize: Int,
     /** The raw message, if the tag had one. */
     val message: NdefMessage? = null,
+    /** Android's tech classes for the tag, short names (e.g. "NfcA", "MifareUltralight"). */
+    val techs: List<String> = emptyList(),
 ) {
     val isEmpty: Boolean get() = recordCount == 0
     fun hasAar(pkg: String) = aarPackages.any { it == pkg }
@@ -67,22 +69,73 @@ object NfcTags {
         return NdefMessage((kept + NdefRecord.createApplicationRecord(pkg)).toTypedArray())
     }
 
+    /**
+     * [existing] with the record holding [oldUrl] switched to [newUrl], everything else kept.
+     * If that doesn't fit in [maxSize], text records are dropped. Null if it still doesn't fit.
+     */
+    fun replaceUrl(existing: NdefMessage, oldUrl: String, newUrl: String, maxSize: Int): NdefMessage? {
+        var swapped = false
+        val records = existing.records.map { r ->
+            if (!swapped && !isAar(r) && r.toUri()?.toString() == oldUrl) {
+                swapped = true
+                NdefRecord.createUri(newUrl)
+            } else {
+                r
+            }
+        }
+        if (!swapped) return null
+        val full = NdefMessage(records.toTypedArray())
+        if (maxSize <= 0 || full.byteArrayLength <= maxSize) return full
+        val slim = records.filterNot { isText(it) }
+        return NdefMessage(slim.toTypedArray()).takeIf { it.byteArrayLength <= maxSize }
+    }
+
+    /** One line per record, for showing what's on a tag. */
+    fun describe(r: NdefRecord): String {
+        val type = String(r.type, Charsets.US_ASCII)
+        return when {
+            r.tnf == NdefRecord.TNF_EMPTY -> "Empty record"
+            isAar(r) -> "Opens with app: ${String(r.payload, Charsets.UTF_8)}"
+            isText(r) -> "Text: ${textOf(r)}"
+            r.toUri() != null -> "Link: ${r.toUri()}"
+            r.tnf == NdefRecord.TNF_MIME_MEDIA -> when (type) {
+                "application/vnd.wfa.wsc" -> "Wi-Fi network settings"
+                "text/vcard", "text/x-vcard" -> "Contact card"
+                else -> "Data ($type, ${r.payload.size} bytes)"
+            }
+            r.tnf == NdefRecord.TNF_EXTERNAL_TYPE -> "App data ($type, ${r.payload.size} bytes)"
+            else -> "Other record (${r.payload.size} bytes)"
+        }
+    }
+
+    private fun isText(r: NdefRecord) =
+        r.tnf == NdefRecord.TNF_WELL_KNOWN && r.type.contentEquals(NdefRecord.RTD_TEXT)
+
+    private fun textOf(r: NdefRecord): String {
+        val p = r.payload
+        if (p.isEmpty()) return ""
+        val langLength = p[0].toInt() and 0x3F
+        val charset = if (p[0].toInt() and 0x80 != 0) Charsets.UTF_16 else Charsets.UTF_8
+        return if (1 + langLength > p.size) "" else String(p, 1 + langLength, p.size - 1 - langLength, charset)
+    }
+
     private fun isAar(r: NdefRecord) =
         r.tnf == NdefRecord.TNF_EXTERNAL_TYPE && String(r.type, Charsets.US_ASCII) == AAR_TYPE
 
     fun read(tag: Tag): TagSnapshot {
         val uid = uid(tag)
+        val techs = tag.techList.map { it.substringAfterLast('.') }
         val ndef = Ndef.get(tag)
         if (ndef == null) {
             val formattable = NdefFormatable.get(tag) != null
             if (!formattable) throw TagException("This tag doesn't support NDEF, so it can't hold a URL.")
-            return TagSnapshot(uid, null, emptyList(), 0, isNdef = false, isWritable = true, maxSize = 0)
+            return TagSnapshot(uid, null, emptyList(), 0, isNdef = false, isWritable = true, maxSize = 0, techs = techs)
         }
         return guard {
             ndef.connect()
             try {
                 val message: NdefMessage? = ndef.ndefMessage
-                parse(uid, message, ndef.isWritable, ndef.maxSize)
+                parse(uid, message, ndef.isWritable, ndef.maxSize).copy(techs = techs)
             } finally {
                 closeQuietly(ndef)
             }

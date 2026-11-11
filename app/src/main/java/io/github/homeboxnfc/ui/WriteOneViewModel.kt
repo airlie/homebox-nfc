@@ -4,7 +4,6 @@ import android.app.Application
 import android.nfc.Tag
 import androidx.lifecycle.AndroidViewModel
 import io.github.homeboxnfc.HomeboxNfcApplication
-import io.github.homeboxnfc.nfc.NfcTags
 import io.github.homeboxnfc.nfc.TagException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -93,12 +92,13 @@ class WriteOneViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun identify(tag: Tag) {
-        val url = try {
-            NfcTags.read(tag).url
+        val read = try {
+            readTag(app, tag)
         } catch (e: TagException) {
             say(e.message.orEmpty(), MessageKind.ERROR)
             return
         }
+        val url = read.url
         val id = url?.let { app.homebox.parseEntityUrl(it)?.second }
         val name = id?.let { app.store.view.value?.index?.get(it)?.name }
         say(
@@ -106,7 +106,7 @@ class WriteOneViewModel(application: Application) : AndroidViewModel(application
                 url == null -> "That tag is empty. Pick an entry first to write it."
                 name != null -> "That tag is for $name. Pick an entry first to write a tag."
                 else -> "That tag holds $url. Pick an entry first to write it."
-            },
+            } + read.note,
             MessageKind.INFO,
         )
     }

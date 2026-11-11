@@ -5,8 +5,8 @@ import android.nfc.Tag
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.homeboxnfc.HomeboxNfcApplication
+import io.github.homeboxnfc.SpeakMode
 import io.github.homeboxnfc.homebox.TreeNode
-import io.github.homeboxnfc.nfc.NfcTags
 import io.github.homeboxnfc.nfc.TagException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,7 +90,10 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
     val ui: StateFlow<BatchUi> = _ui.asStateFlow()
 
     init {
-        _ui.value.session?.current?.let { say("Resuming. Tap a tag for: ${it.name}", MessageKind.INFO) }
+        _ui.value.session?.current?.let {
+            say("Resuming. Tap a tag for: ${it.name}", MessageKind.INFO)
+            app.speaker.speak(SpeakMode.BATCH, it.name)
+        }
         store.refreshIfOlderThan(60_000)
     }
 
@@ -143,6 +146,7 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
             queue.isEmpty() -> say("Nothing left to tag in $rootName.", MessageKind.SUCCESS)
             else -> say("${queue.size} to tag. Tap a tag for: ${queue.first().name}", MessageKind.INFO)
         }
+        announce(session.current)
     }
 
     /** Called on the NFC thread while the tag is in the field. */
@@ -172,13 +176,14 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Before a run starts: a location's tag picks that location. */
     private fun selectByTag(tag: Tag) {
-        val url = try {
-            NfcTags.read(tag).url
+        val read = try {
+            readTag(app, tag)
         } catch (e: TagException) {
             app.feedback.error()
             say(e.message.orEmpty(), MessageKind.ERROR)
             return
         }
+        val url = read.url
         val id = url?.let { app.homebox.parseEntityUrl(it)?.second }
         val node = id?.let { store.view.value?.index?.get(it) }
         when {
@@ -188,16 +193,17 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
             }
             node == null -> {
                 app.feedback.warning()
-                say("That tag isn't for a location in the saved Homebox data.", MessageKind.WARNING)
+                say("That tag isn't for a location in the saved Homebox data." + read.note, MessageKind.WARNING)
             }
             !node.isLocation -> {
                 app.feedback.warning()
-                say("That's the tag for ${node.name}, an item. Scan a location's tag to pick it.", MessageKind.WARNING)
+                say("That's the tag for ${node.name}, an item. Scan a location's tag to pick it." + read.note, MessageKind.WARNING)
             }
             else -> {
                 app.feedback.success()
                 _ui.update { it.copy(selectedRootId = node.id) }
-                say("Picked ${node.name}. Tap Start when ready.", MessageKind.SUCCESS)
+                say("Picked ${node.name}. Tap Start when ready." + read.note, MessageKind.SUCCESS)
+                app.speaker.speak(SpeakMode.BATCH, node.name)
             }
         }
     }
@@ -209,6 +215,12 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
         _ui.update { it.copy(session = next) }
         val upNext = next.current
         say(if (upNext == null) "$done. All done!" else "$done. Next: ${upNext.name}", MessageKind.SUCCESS)
+        announce(upNext)
+    }
+
+    /** Reads the next entry's name aloud (if turned on), so you can find it without looking. */
+    private fun announce(item: QueueItem?) {
+        if (item == null) app.speaker.speakPhrase(SpeakMode.BATCH, "All done") else app.speaker.speak(SpeakMode.BATCH, item.name)
     }
 
     fun skip() {
@@ -218,6 +230,7 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
         save(next)
         _ui.update { it.copy(session = next) }
         say("Skipped ${s.current?.name}." + (next.current?.let { " Next: ${it.name}" } ?: ""), MessageKind.INFO)
+        announce(next.current)
     }
 
     /** Go back one entry, e.g. to rewrite a tag. Allows the just-written tag to be reused. */
@@ -229,6 +242,7 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
         save(prev)
         _ui.update { it.copy(session = prev) }
         say("Back to: ${prev.current?.name}", MessageKind.INFO)
+        announce(prev.current)
     }
 
     fun endSession() {

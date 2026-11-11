@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
@@ -57,12 +58,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.homeboxnfc.HomeboxNfcApplication
+import io.github.homeboxnfc.SpeakMode
 
 enum class Screen(val title: String) {
     HOME("Homebox NFC"),
     WRITE_ONE("Write one tag"),
     BATCH("Batch write"),
     INVENTORY("Inventory"),
+    READ("Read tag"),
     FIX("Fix tag"),
     SYNC("Sync"),
     SETTINGS("Settings"),
@@ -99,6 +102,7 @@ fun App(activity: ComponentActivity, nfcAdapter: NfcAdapter?) {
                         }
                     },
                     actions = {
+                        speakModeFor(screen)?.let { SpeakAction(app, it) }
                         if (screen != Screen.SYNC && screen != Screen.WEB_LOGIN) SyncAction(app) { screen = Screen.SYNC }
                         if (screen == Screen.HOME) {
                             IconButton(onClick = { screen = Screen.SETTINGS }) {
@@ -120,7 +124,8 @@ fun App(activity: ComponentActivity, nfcAdapter: NfcAdapter?) {
                         Screen.WRITE_ONE -> WriteOneScreen(app)
                         Screen.BATCH -> BatchScreen(app)
                         Screen.INVENTORY -> InventoryScreen(app)
-                        Screen.FIX -> FixTagScreen()
+                        Screen.READ -> ReadTagScreen(app)
+                        Screen.FIX -> ReadTagScreen(app, fix = true)
                         Screen.SYNC -> SyncScreen(app) { screen = Screen.SETTINGS }
                         Screen.SETTINGS -> SettingsScreen(activity, app) { screen = Screen.WEB_LOGIN }
                         Screen.WEB_LOGIN -> WebLoginScreen(app) { screen = Screen.SETTINGS }
@@ -128,6 +133,27 @@ fun App(activity: ComponentActivity, nfcAdapter: NfcAdapter?) {
                 }
             }
         }
+    }
+}
+
+private fun speakModeFor(screen: Screen): SpeakMode? = when (screen) {
+    Screen.BATCH -> SpeakMode.BATCH
+    Screen.INVENTORY -> SpeakMode.INVENTORY
+    Screen.READ -> SpeakMode.READ
+    else -> null
+}
+
+/** Top-bar switch for reading names aloud on this screen (remembered per screen). */
+@Composable
+private fun SpeakAction(app: HomeboxNfcApplication, mode: SpeakMode) {
+    val enabled by app.speaker.enabled.collectAsStateWithLifecycle()
+    val on = mode in enabled
+    LaunchedEffect(mode) { app.speaker.prepare(mode) }
+    IconButton(onClick = { app.speaker.setOn(mode, !on) }) {
+        Icon(
+            if (on) SpeakerIcons.On else SpeakerIcons.Off,
+            contentDescription = if (on) "Stop reading names aloud" else "Read names aloud",
+        )
     }
 }
 
@@ -189,7 +215,7 @@ private fun HomeScreen(app: HomeboxNfcApplication, navigate: (Screen) -> Unit) {
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Set up Homebox", style = MaterialTheme.typography.titleMedium)
-                    Text("Add your Homebox address and log in. Fix tag works without it.")
+                    Text("Add your Homebox address and log in. Read tag works without it.")
                 }
             }
         }
@@ -208,7 +234,10 @@ private fun HomeScreen(app: HomeboxNfcApplication, navigate: (Screen) -> Unit) {
             "Inventory",
             "Scan a location, then items. Items are verified, or moved here if Homebox had them elsewhere.",
         ) { navigate(Screen.INVENTORY) }
-        MenuItem(Icons.Filled.Build, "Fix tag", "Add the Chrome app record to a tag that already has a link.") {
+        MenuItem(Icons.Filled.Search, "Read tag", "See what a tag is for. Tags with an old Homebox address get updated.") {
+            navigate(Screen.READ)
+        }
+        MenuItem(Icons.Filled.Build, "Fix tag", "Update an old Homebox address and add the app record, keeping the rest of the tag.") {
             navigate(Screen.FIX)
         }
         if (configured) {

@@ -10,6 +10,13 @@
         android:name="android.hardware.nfc"
         android:required="true" />
 
+    <!-- Text-to-speech engines, for reading names aloud. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".HomeboxNfcApplication"
         android:allowBackup="false"

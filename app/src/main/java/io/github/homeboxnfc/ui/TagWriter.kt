@@ -35,7 +35,9 @@ class TagWriter(private val app: HomeboxNfcApplication) {
             val message = NfcTags.buildMessage(url, pkg, name.takeIf { prefs.includeName }, snap.maxSize)
             alreadyThere = snap.message?.toByteArray()?.contentEquals(message.toByteArray()) == true
             val existing = snap.url
-            if (!alreadyThere && existing != null && existing != url && uid != armedOverwriteUid) {
+            // A link to this same entry (even at a previous Homebox address) is fine to replace without asking.
+            val sameEntry = existing != null && app.homebox.parseEntityUrl(existing)?.second == entryId
+            if (!alreadyThere && existing != null && !sameEntry && uid != armedOverwriteUid) {
                 armedOverwriteUid = uid
                 val what = if (app.homebox.isHomeboxUrl(existing)) {
                     val id = app.homebox.parseEntityUrl(existing)?.second

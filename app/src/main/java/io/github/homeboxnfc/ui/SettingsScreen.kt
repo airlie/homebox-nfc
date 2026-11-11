@@ -33,7 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.homeboxnfc.HomeboxNfcApplication
+import io.github.homeboxnfc.SpeakMode
 import io.github.homeboxnfc.data.AccessMode
 import io.github.homeboxnfc.data.SecretStore
 import io.github.homeboxnfc.homebox.HomeboxException
@@ -69,7 +71,20 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
     }
     var customPackage by remember { mutableStateOf(prefs.aarPackage.trim().takeIf { it != CHROME }.orEmpty()) }
     var includeName by remember { mutableStateOf(prefs.includeName) }
-    DisposableEffect(Unit) { onDispose { app.store.onSettingsChanged() } }
+    var previousUrls by remember { mutableStateOf(prefs.previousServerUrls) }
+    DisposableEffect(Unit) {
+        val startUrl = prefs.serverUrl
+        onDispose {
+            // Moved Homebox? Remember the old address so its tags get updated when read.
+            prefs.addPreviousServer(startUrl)
+            app.store.onSettingsChanged()
+        }
+    }
+    val speakOn by app.speaker.enabled.collectAsStateWithLifecycle()
+    var stopAtSymbol by remember { mutableStateOf(prefs.speakStopAtSymbol) }
+    var skipWords by remember { mutableStateOf(prefs.speakSkipWords) }
+    var maxChars by remember { mutableStateOf(prefs.speakMaxChars.toString()) }
+    var sampleName by remember { mutableStateOf("Box 12 - Christmas lights and ornaments") }
     var tagName by remember { mutableStateOf(prefs.nfcTagName) }
     var fieldName by remember { mutableStateOf(prefs.nfcFieldName) }
     var verifiedField by remember { mutableStateOf(prefs.verifiedFieldName) }
@@ -105,6 +120,17 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = previousUrls,
+            onValueChange = { previousUrls = it; prefs.previousServerUrls = it },
+            label = { Text("Previous addresses") },
+            placeholder = { Text("https://old-homebox.example.com") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth(),
+            supportingText = {
+                Text("One per line. Tags that link to these are switched to the address above whenever the app reads them. Changing the address adds the old one here.")
+            },
         )
 
         Section("Cloudflare Access")
@@ -294,6 +320,51 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
             modifier = Modifier.fillMaxWidth(),
             supportingText = { Text("Set when a tag is written and when Inventory checks the item.") },
         )
+
+        Section("Read names aloud")
+        Hint("Says the entry's name so you can find the next thing without looking at the screen. The speaker button on each screen switches it too.")
+        listOf(
+            SpeakMode.BATCH to ("Batch write" to "The next entry to tag"),
+            SpeakMode.INVENTORY to ("Inventory" to "Each location and item as it's scanned"),
+            SpeakMode.READ to ("Read tag" to "The entry the tag is for"),
+        ).forEach { (mode, text) ->
+            ToggleRow(text.first, text.second, mode in speakOn) { app.speaker.setOn(mode, it) }
+        }
+        ToggleRow(
+            "Stop at the first symbol",
+            "Reads up to the first character that isn't a letter, number or space.",
+            stopAtSymbol,
+        ) { stopAtSymbol = it; prefs.speakStopAtSymbol = it }
+        OutlinedTextField(
+            value = skipWords,
+            onValueChange = { skipWords = it; prefs.speakSkipWords = it },
+            label = { Text("Skip these words at the start") },
+            singleLine = true, modifier = Modifier.fillMaxWidth(),
+            supportingText = { Text("Separated by commas. With \"box\", \"Box 12\" is read as \"12\".") },
+        )
+        OutlinedTextField(
+            value = maxChars,
+            onValueChange = { v ->
+                maxChars = v.filter { it.isDigit() }.take(3)
+                maxChars.toIntOrNull()?.let { prefs.speakMaxChars = it }
+            },
+            label = { Text("Longest name to read (characters)") },
+            singleLine = true, modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            supportingText = { Text("Stops at the last whole word that fits. 0 means no limit.") },
+        )
+        OutlinedTextField(
+            value = sampleName,
+            onValueChange = { sampleName = it },
+            label = { Text("Try a name") },
+            singleLine = true, modifier = Modifier.fillMaxWidth(),
+            supportingText = {
+                // Re-read on every change of the settings above.
+                val spoken = remember(sampleName, stopAtSymbol, skipWords, maxChars) { app.speaker.shorten(sampleName) }
+                Text("Read as: \"$spoken\"")
+            },
+        )
+        OutlinedButton(onClick = { app.speaker.say(app.speaker.shorten(sampleName)) }) { Text("Play") }
 
         Section("About")
         Text("Homebox NFC ${appVersion(activity)}", style = MaterialTheme.typography.bodyLarge)

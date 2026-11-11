@@ -59,9 +59,20 @@ class HomeboxClient(
     fun entityUrl(id: String, isLocation: Boolean): String =
         "$baseUrl/${if (isLocation) "location" else "item"}/$id"
 
-    /** True if [url] points at an item or location page on this Homebox server. */
-    fun isHomeboxUrl(url: String): Boolean =
-        baseUrl.isNotBlank() && (url.startsWith("$baseUrl/item/") || url.startsWith("$baseUrl/location/"))
+    /** The current or previous address [url] belongs to, if it links to an item or location page. */
+    private fun baseOf(url: String): String? = (listOf(baseUrl) + prefs.previousBases)
+        .filter { it.isNotBlank() }
+        .firstOrNull { url.startsWith("$it/item/", ignoreCase = true) || url.startsWith("$it/location/", ignoreCase = true) }
+
+    /** True if [url] points at an item or location page on this Homebox (current or a previous address). */
+    fun isHomeboxUrl(url: String): Boolean = baseOf(url) != null
+
+    /** If [url] uses a previous Homebox address, the same link on the current address. Otherwise null. */
+    fun currentAddressFor(url: String): String? {
+        val base = baseOf(url) ?: return null
+        if (baseUrl.isBlank() || base == baseUrl) return null
+        return baseUrl + url.substring(base.length)
+    }
 
     val hasToken: Boolean get() = !secrets[SecretStore.HOMEBOX_TOKEN].isNullOrBlank()
 
@@ -170,10 +181,10 @@ class HomeboxClient(
 
     /** Parses ".../item/<id>" or ".../location/<id>" on this server into (isLocation, id). */
     fun parseEntityUrl(url: String): Pair<Boolean, String>? {
-        if (!isHomeboxUrl(url)) return null
-        val parts = url.removePrefix("$baseUrl/").substringBefore('?').substringBefore('#').split('/')
+        val base = baseOf(url) ?: return null
+        val parts = url.substring(base.length + 1).substringBefore('?').substringBefore('#').split('/')
         val id = parts.getOrNull(1)?.takeIf { it.isNotBlank() } ?: return null
-        return (parts[0] == "location") to id
+        return parts[0].equals("location", ignoreCase = true) to id
     }
 
     // ---- writes -------------------------------------------------------------------------
