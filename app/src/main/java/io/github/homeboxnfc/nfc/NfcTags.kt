@@ -21,6 +21,8 @@ data class TagSnapshot(
     val isWritable: Boolean,
     /** Usable NDEF capacity in bytes (0 if unknown, e.g. a blank unformatted tag). */
     val maxSize: Int,
+    /** The raw message, if the tag had one. */
+    val message: NdefMessage? = null,
 ) {
     val isEmpty: Boolean get() = recordCount == 0
     fun hasAar(pkg: String) = aarPackages.any { it == pkg }
@@ -37,14 +39,36 @@ object NfcTags {
 
     fun uid(tag: Tag): String = tag.id.joinToString(":") { "%02X".format(it) }
 
-    /** The record set this app writes: the URL, then (optionally) an Android Application Record. */
-    fun buildMessage(url: String, aarPackage: String?): NdefMessage {
-        val records = buildList {
-            add(NdefRecord.createUri(url))
-            if (!aarPackage.isNullOrBlank()) add(NdefRecord.createApplicationRecord(aarPackage))
+    /**
+     * The record set this app writes: the URL (always first, since Android dispatches on the
+     * first record), optionally a text record with [label], then optionally an Android
+     * Application Record. If [maxSize] is known, the label is shortened (or dropped) to fit.
+     */
+    fun buildMessage(url: String, aarPackage: String?, label: String? = null, maxSize: Int = 0): NdefMessage {
+        fun make(text: String?) = NdefMessage(
+            buildList {
+                add(NdefRecord.createUri(url))
+                if (!text.isNullOrBlank()) add(NdefRecord.createTextRecord(null, text))
+                if (!aarPackage.isNullOrBlank()) add(NdefRecord.createApplicationRecord(aarPackage))
+            }.toTypedArray()
+        )
+        var text = label?.trim()?.take(100)
+        var message = make(text)
+        while (maxSize > 0 && message.byteArrayLength > maxSize && !text.isNullOrEmpty()) {
+            text = text.dropLast(1).trimEnd().takeIf { it.length >= 3 }
+            message = make(text)
         }
-        return NdefMessage(records.toTypedArray())
+        return message
     }
+
+    /** [existing] with an Android Application Record for [pkg] added (other AARs removed). */
+    fun withAar(existing: NdefMessage, pkg: String): NdefMessage {
+        val kept = existing.records.filterNot { isAar(it) }
+        return NdefMessage((kept + NdefRecord.createApplicationRecord(pkg)).toTypedArray())
+    }
+
+    private fun isAar(r: NdefRecord) =
+        r.tnf == NdefRecord.TNF_EXTERNAL_TYPE && String(r.type, Charsets.US_ASCII) == AAR_TYPE
 
     fun read(tag: Tag): TagSnapshot {
         val uid = uid(tag)
@@ -110,13 +134,13 @@ object NfcTags {
         var url: String? = null
         val packages = mutableListOf<String>()
         for (r in records) {
-            if (r.tnf == NdefRecord.TNF_EXTERNAL_TYPE && String(r.type, Charsets.US_ASCII) == AAR_TYPE) {
+            if (isAar(r)) {
                 packages += String(r.payload, Charsets.UTF_8)
                 continue
             }
             if (url == null) url = r.toUri()?.toString()
         }
-        return TagSnapshot(uid, url, packages, records.size, isNdef = true, isWritable = writable, maxSize = maxSize)
+        return TagSnapshot(uid, url, packages, records.size, isNdef = true, isWritable = writable, maxSize = maxSize, message = message)
     }
 
     private inline fun <T> guard(block: () -> T): T = try {

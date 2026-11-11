@@ -29,6 +29,26 @@ class TreeIndex(val roots: List<TreeNode>) {
 
     operator fun get(id: String): TreeNode? = byId[id]
 
+    /** Every entry (locations and items). */
+    val all: Collection<TreeNode> get() = byId.values
+
+    val itemCount: Int get() = byId.values.count { !it.isLocation }
+
+    fun parentOf(id: String): String? = parentOf[id]
+
+    /** The nearest location above [id] (not counting [id] itself). */
+    fun locationOf(id: String): String? {
+        var cur = parentOf[id]
+        while (cur != null) {
+            if (byId[cur]?.isLocation == true) return cur
+            cur = parentOf[cur]
+        }
+        return null
+    }
+
+    /** Path of whatever contains [id], e.g. "Garage › Shelf 2" for an item on that shelf. */
+    fun containerPath(id: String): String = parentOf[id]?.let { pathOf(it) }.orEmpty()
+
     /** "Garage › Shelf 2" for a location (or item) id. */
     fun pathOf(id: String): String {
         val names = mutableListOf<String>()

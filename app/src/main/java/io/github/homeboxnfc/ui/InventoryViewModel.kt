@@ -5,31 +5,27 @@ import android.nfc.Tag
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.homeboxnfc.HomeboxNfcApplication
-import io.github.homeboxnfc.homebox.HomeboxException
+import io.github.homeboxnfc.data.WorkingView
 import io.github.homeboxnfc.homebox.TreeNode
 import io.github.homeboxnfc.nfc.NfcTags
 import io.github.homeboxnfc.nfc.TagException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicLong
 
 data class InvLocation(val id: String, val name: String, val path: String)
 
-enum class InvOutcome { VERIFIED, MOVED, LOCATION, WARNING, ERROR }
+enum class InvOutcome { VERIFIED, MOVED, LOCATION, ERROR }
 
 /** Enough to put an entity back where it was. */
-data class UndoMove(val entityId: String, val parentId: String?, val locationOverrideId: String?)
+data class UndoMove(val entityId: String, val name: String, val parentId: String, val parentName: String)
 
 data class InvEntry(
     val key: Long,
-    val entityId: String?,
     val title: String,
     val detail: String,
     val outcome: InvOutcome,
@@ -41,12 +37,11 @@ data class InvEntry(
 data class NestOffer(val child: InvLocation, val parent: InvLocation)
 
 data class InventoryUi(
-    val loading: Boolean = false,
     val locations: List<LocationOption> = emptyList(),
     val current: InvLocation? = null,
     val picking: Boolean = false,
     val acceptSubLocations: Boolean = true,
-    /** NFC-tagged items Homebox says are at the current location. */
+    /** NFC-tagged items the saved data says are at the current location. */
     val expected: List<TreeNode> = emptyList(),
     /** Items scanned (and verified or moved) at the current location. */
     val found: Set<String> = emptySet(),
@@ -63,61 +58,42 @@ data class InventoryUi(
  * Inventory: scan a location tag (or pick a location), then scan item tags. Each item is
  * verified in place or moved here, gets today's date in the "Location verified" field, and
  * gets the NFC Tagged tag / NFC Tag field if it was missing them.
+ *
+ * Everything is decided from the saved Homebox data, so scanning is instant and works
+ * offline; the resulting Homebox updates go into the outbox.
  */
 class InventoryViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as HomeboxNfcApplication
     private val prefs = app.prefs
-    private val homebox = app.homebox
+    private val store = app.store
+    private val keys = AtomicLong()
 
     private val _ui = MutableStateFlow(InventoryUi())
     val ui: StateFlow<InventoryUi> = _ui.asStateFlow()
 
-    /** Serializes Homebox work so scans are processed in order. */
-    private val mutex = Mutex()
-    private val keys = AtomicLong()
-
-    @Volatile private var index: TreeIndex? = null
-    @Volatile private var taggedIds: Set<String> = emptySet()
-    @Volatile private var nfcTagId: String? = null
-
     init {
-        reload()
-    }
-
-    // ---- data ---------------------------------------------------------------------------
-
-    fun reload() {
-        _ui.update { it.copy(loading = true) }
-        viewModelScope.launch(Dispatchers.IO) {
-            mutex.withLock {
-                try {
-                    loadTreeLocked()
-                    _ui.update { it.copy(loading = false, picking = it.current == null) }
-                    if (_ui.value.current == null) say("Scan a location tag, or pick a location below.", MessageKind.INFO)
-                } catch (e: HomeboxException) {
-                    _ui.update { it.copy(loading = false) }
-                    say(e.message.orEmpty(), MessageKind.ERROR)
+        viewModelScope.launch {
+            store.view.collect { v ->
+                _ui.update { s ->
+                    s.copy(
+                        locations = v?.index?.locationOptions.orEmpty(),
+                        expected = expectedFor(v, s.current, s.acceptSubLocations),
+                        picking = s.picking || s.current == null,
+                    )
                 }
             }
         }
+        say("Scan a location tag, or pick a location.", MessageKind.INFO)
+        store.refreshIfOlderThan(60_000)
     }
 
-    private fun loadTreeLocked() {
-        val idx = TreeIndex(homebox.tree())
-        val tagId = homebox.findTag(prefs.nfcTagName).also { nfcTagId = it }
-        taggedIds = tagId?.let { homebox.entityIdsWithTag(it) } ?: emptySet()
-        index = idx
-        _ui.update { s -> s.copy(locations = idx.locationOptions, expected = expectedFor(s.current, s.acceptSubLocations)) }
-    }
-
-    private fun expectedFor(loc: InvLocation?, includeSub: Boolean): List<TreeNode> {
-        val idx = index ?: return emptyList()
-        if (loc == null) return emptyList()
-        return idx.itemsAt(loc.id, includeSub).filter { it.id in taggedIds }
+    private fun expectedFor(v: WorkingView?, loc: InvLocation?, includeSub: Boolean): List<TreeNode> {
+        if (v == null || loc == null) return emptyList()
+        return v.index.itemsAt(loc.id, includeSub).filter { it.id in v.taggedIds }
     }
 
     fun setAcceptSubLocations(value: Boolean) {
-        _ui.update { it.copy(acceptSubLocations = value, expected = expectedFor(it.current, value)) }
+        _ui.update { it.copy(acceptSubLocations = value, expected = expectedFor(store.view.value, it.current, value)) }
     }
 
     fun showPicker(show: Boolean) = _ui.update { it.copy(picking = show) }
@@ -129,6 +105,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     private fun setLocation(loc: InvLocation, viaScan: Boolean) {
         val prev = _ui.value.current
         if (prev?.id == loc.id) {
+            _ui.update { it.copy(picking = false) }
             say("Already at ${loc.name}. Scan items.", MessageKind.INFO)
             return
         }
@@ -137,11 +114,11 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 current = loc,
                 picking = false,
                 found = emptySet(),
-                expected = expectedFor(loc, it.acceptSubLocations),
+                expected = expectedFor(store.view.value, loc, it.acceptSubLocations),
                 nestOffer = if (viaScan && prev != null) NestOffer(child = loc, parent = prev) else null,
             )
         }
-        log(InvEntry(keys.incrementAndGet(), loc.id, "Location: ${loc.name}", loc.path, InvOutcome.LOCATION))
+        log(InvEntry(keys.incrementAndGet(), "Location: ${loc.name}", loc.path, InvOutcome.LOCATION))
         say("Now at ${loc.name}. Scan items.", MessageKind.INFO)
     }
 
@@ -162,15 +139,28 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             say("That tag has no URL.", MessageKind.WARNING)
             return
         }
-        val parsed = homebox.parseEntityUrl(url)
+        val parsed = app.homebox.parseEntityUrl(url)
         if (parsed == null) {
             app.feedback.error()
             say("Not a tag for this Homebox: $url", MessageKind.WARNING)
             return
         }
-        val (isLocation, id) = parsed
-        if (isLocation) {
-            viewModelScope.launch(Dispatchers.IO) { mutex.withLock { scanLocationLocked(id) } }
+        val view = store.view.value
+        if (view == null) {
+            app.feedback.error()
+            say("No saved Homebox data yet. Connect to Homebox and refresh first.", MessageKind.ERROR)
+            return
+        }
+        val (isLocationUrl, id) = parsed
+        val node = view.index[id]
+        if (isLocationUrl || node?.isLocation == true) {
+            app.feedback.success()
+            val loc = if (node != null) {
+                InvLocation(id, node.name, view.index.pathOf(id))
+            } else {
+                InvLocation(id, "Unknown location", "Not in the saved data. Refresh to get its name.")
+            }
+            setLocation(loc, viaScan = true)
             return
         }
         val loc = _ui.value.current
@@ -181,147 +171,94 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         }
         if (id in _ui.value.found) {
             app.feedback.warning()
-            say("Already checked ${index?.get(id)?.name ?: "that item"} here.", MessageKind.INFO)
+            say("Already checked ${node?.name ?: "that item"} here.", MessageKind.INFO)
             return
         }
-        viewModelScope.launch(Dispatchers.IO) { mutex.withLock { processItemLocked(id, uid, loc) } }
+        processItem(view, id, node, uid, loc)
     }
 
-    private fun scanLocationLocked(id: String) {
-        try {
-            val idx = index
-            val node = idx?.get(id)
-            val loc = if (node != null) {
-                InvLocation(id, node.name, idx.pathOf(id))
-            } else {
-                val info = homebox.entityInfo(id)
-                InvLocation(id, info.name, info.name)
-            }
+    private fun processItem(view: WorkingView, id: String, node: TreeNode?, uid: String, loc: InvLocation) {
+        val index = view.index
+        val name = node?.name ?: "Unknown item"
+        val today = LocalDate.now().toString()
+        val where = node?.let { index.locationOf(id) }
+        val inPlace = where != null &&
+            (where == loc.id || (_ui.value.acceptSubLocations && index.isWithin(where, loc.id)))
+
+        val tagName = prefs.nfcTagName.trim().ifBlank { null }
+        val addTag = tagName?.takeIf { id !in view.taggedIds }
+        val verified = prefs.verifiedFieldName.trim().ifBlank { null }
+        val nfcField = prefs.nfcFieldName.trim().ifBlank { null }
+        val oldParent = index.parentOf(id)
+
+        val extras = buildList { if (addTag != null) add("added $addTag") }
+        val extraText = if (extras.isEmpty()) "" else " · " + extras.joinToString(", ")
+        store.enqueue(
+            store.newChange(
+                entityId = id,
+                entityName = name,
+                summary = if (inPlace) "Verified in ${loc.name}" else "Moved to ${loc.name}",
+                parentId = if (inPlace) null else loc.id,
+                addTag = addTag,
+                setFields = verified?.let { mapOf(it to today) } ?: emptyMap(),
+                setFieldsIfEmpty = nfcField?.let { mapOf(it to "$uid ($today)") } ?: emptyMap(),
+            )
+        )
+        _ui.update { it.copy(found = it.found + id) }
+
+        if (inPlace) {
             app.feedback.success()
-            setLocation(loc, viaScan = true)
-        } catch (e: HomeboxException) {
-            app.feedback.error()
-            say(e.message.orEmpty(), MessageKind.ERROR)
-        }
-    }
-
-    private fun processItemLocked(id: String, uid: String, loc: InvLocation) {
-        if (id in _ui.value.found) return
-        try {
-            val info = homebox.entityInfo(id)
-            if (info.isLocation) {
-                // A location reached through an /item/ URL; treat it like a location tag.
-                scanLocationLocked(id)
-                return
+            val here = if (where == loc.id) "here" else "in ${index[where!!]?.name}"
+            log(InvEntry(keys.incrementAndGet(), "✓ $name", "Verified $here$extraText", InvOutcome.VERIFIED))
+            say("✓ $name", MessageKind.SUCCESS)
+        } else {
+            app.feedback.warning()
+            val from = when {
+                node == null -> "somewhere not in the saved data"
+                oldParent == null -> "no location"
+                else -> index.pathOf(oldParent)
             }
-            val today = LocalDate.now().toString()
-            val accept = _ui.value.acceptSubLocations
-            val where = info.locationId
-            val inPlace = where == loc.id || (accept && where != null && index?.isWithin(where, loc.id) == true)
-
-            val extras = mutableListOf<String>()
-            val tagId = nfcTagId ?: homebox.ensureTag(prefs.nfcTagName).also { nfcTagId = it }
-            val newTags = if (tagId !in info.tagIds) info.tagIds + tagId else null
-            if (newTags != null) extras += "added ${prefs.nfcTagName}"
-
-            var undo: UndoMove? = null
-            if (!inPlace) {
-                undo = UndoMove(id, info.parentId, info.locationOverrideId)
-                homebox.patch(id, parentId = loc.id, tagIds = newTags)
-            } else if (newTags != null) {
-                homebox.patch(id, tagIds = newTags)
-            }
-
-            val fieldUpdates = mutableMapOf<String, String>()
-            prefs.verifiedFieldName.ifBlank { null }?.let { name ->
-                if (info.field(name) != today) fieldUpdates[name] = today
-            }
-            prefs.nfcFieldName.ifBlank { null }?.let { name ->
-                if (info.field(name).isNullOrBlank()) {
-                    fieldUpdates[name] = "$uid ($today)"
-                    extras += "recorded tag ID"
-                }
-            }
-            homebox.setTextFields(id, fieldUpdates)
-
-            taggedIds = taggedIds + id
-            _ui.update { it.copy(found = it.found + id) }
-            val extraText = if (extras.isEmpty()) "" else " · " + extras.joinToString(", ")
-            if (inPlace) {
-                app.feedback.success()
-                val here = if (where == loc.id) "here" else "in ${info.locationName}"
-                log(InvEntry(keys.incrementAndGet(), id, "✓ ${info.name}", "Verified $here$extraText", InvOutcome.VERIFIED))
-                say("✓ ${info.name}", MessageKind.SUCCESS)
-            } else {
-                app.feedback.warning()
-                val from = buildString {
-                    append(info.locationName ?: "no location")
-                    if (info.parentId != null && info.parentId != info.locationId) append(" (inside ${info.parentName})")
-                }
-                log(InvEntry(keys.incrementAndGet(), id, "Moved ${info.name}", "From $from$extraText", InvOutcome.MOVED, undo))
-                say("Moved ${info.name} here from $from", MessageKind.WARNING)
-            }
-        } catch (e: HomeboxException) {
-            app.feedback.error()
-            log(InvEntry(keys.incrementAndGet(), id, "Couldn't update ${index?.get(id)?.name ?: "item"}", e.message.orEmpty(), InvOutcome.ERROR))
-            say(e.message.orEmpty(), MessageKind.ERROR)
+            val undo = oldParent?.let { UndoMove(id, name, it, index[it]?.name ?: "previous place") }
+            log(InvEntry(keys.incrementAndGet(), "Moved $name", "From $from$extraText", InvOutcome.MOVED, undo))
+            say("Moved $name here from $from", MessageKind.WARNING)
         }
     }
 
     // ---- corrections --------------------------------------------------------------------
 
+    /** Queues a move back. Changes are sent in order, so this works whether or not the move has synced. */
     fun undo(entry: InvEntry) {
         val u = entry.undo ?: return
         if (entry.undone) return
-        viewModelScope.launch(Dispatchers.IO) {
-            mutex.withLock {
-                try {
-                    if (u.parentId == null) throw HomeboxException("It had no location before, so there's nothing to move it back to.")
-                    homebox.patch(u.entityId, parentId = u.parentId, locationId = u.locationOverrideId)
-                    _ui.update { s ->
-                        s.copy(
-                            found = s.found - u.entityId,
-                            log = s.log.map { if (it.key == entry.key) it.copy(undone = true, detail = it.detail + " · undone") else it },
-                        )
-                    }
-                    say("Moved it back.", MessageKind.INFO)
-                } catch (e: HomeboxException) {
-                    say("Undo failed: ${e.message}", MessageKind.ERROR)
-                }
-            }
+        store.enqueue(
+            store.newChange(u.entityId, u.name, "Moved back to ${u.parentName} (undo)", parentId = u.parentId)
+        )
+        _ui.update { s ->
+            s.copy(
+                found = s.found - u.entityId,
+                log = s.log.map { if (it.key == entry.key) it.copy(undone = true, detail = it.detail + " · undone") else it },
+            )
         }
+        say("Moved ${u.name} back to ${u.parentName}.", MessageKind.INFO)
     }
 
     /** Puts the just-scanned location inside the previous one (e.g. a box onto a shelf). */
     fun acceptNest() {
         val offer = _ui.value.nestOffer ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            mutex.withLock {
-                try {
-                    homebox.patch(offer.child.id, parentId = offer.parent.id)
-                    loadTreeLocked()
-                    val idx = index
-                    val parent = offer.parent.copy(path = idx?.pathOf(offer.parent.id) ?: offer.parent.path)
-                    _ui.update {
-                        it.copy(
-                            current = parent,
-                            nestOffer = null,
-                            found = emptySet(),
-                            expected = expectedFor(parent, it.acceptSubLocations),
-                        )
-                    }
-                    log(
-                        InvEntry(
-                            keys.incrementAndGet(), offer.child.id, "Moved ${offer.child.name}",
-                            "Into ${offer.parent.name}", InvOutcome.MOVED,
-                        )
-                    )
-                    say("Moved ${offer.child.name} into ${offer.parent.name}. Still at ${offer.parent.name}.", MessageKind.SUCCESS)
-                } catch (e: HomeboxException) {
-                    say("Couldn't move ${offer.child.name}: ${e.message}", MessageKind.ERROR)
-                }
-            }
+        store.enqueue(
+            store.newChange(offer.child.id, offer.child.name, "Moved into ${offer.parent.name}", parentId = offer.parent.id)
+        )
+        val parent = offer.parent.copy(path = store.view.value?.index?.pathOf(offer.parent.id) ?: offer.parent.path)
+        _ui.update {
+            it.copy(
+                current = parent,
+                nestOffer = null,
+                found = emptySet(),
+                expected = expectedFor(store.view.value, parent, it.acceptSubLocations),
+            )
         }
+        log(InvEntry(keys.incrementAndGet(), "Moved ${offer.child.name}", "Into ${offer.parent.name}", InvOutcome.MOVED))
+        say("Moved ${offer.child.name} into ${offer.parent.name}. Still at ${offer.parent.name}.", MessageKind.SUCCESS)
     }
 
     fun dismissNest() = _ui.update { it.copy(nestOffer = null) }

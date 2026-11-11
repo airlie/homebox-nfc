@@ -27,7 +27,10 @@ class Prefs(context: Context) {
     /** Package for the Android Application Record. Blank = write the URL only. */
     var aarPackage by string("aarPackage", "com.android.chrome")
 
-    /** Homebox tag added to every item that gets an NFC tag. */
+    /** Also write the entry's name to the tag as an NDEF text record. */
+    var includeName by bool("includeName", false)
+
+    /** Homebox tag added to every item that gets an NFC tag. Blank = don't tag. */
     var nfcTagName by string("nfcTagName", "NFC Tagged")
 
     /** Custom field that records the NFC tag UID + date. Blank = don't write a field. */
@@ -42,6 +45,13 @@ class Prefs(context: Context) {
 
     /** Batch session persisted as JSON so an interrupted run can resume. */
     var batchSessionJson by string("batchSession", "")
+
+    private fun bool(key: String, default: Boolean) = object : ReadWriteProperty<Any?, Boolean> {
+        override fun getValue(thisRef: Any?, property: KProperty<*>): Boolean = sp.getBoolean(key, default)
+        override fun setValue(thisRef: Any?, property: KProperty<*>, value: Boolean) {
+            sp.edit().putBoolean(key, value).apply()
+        }
+    }
 
     private fun string(key: String, default: String) = object : ReadWriteProperty<Any?, String> {
         override fun getValue(thisRef: Any?, property: KProperty<*>): String = sp.getString(key, default) ?: default

@@ -40,8 +40,11 @@ class FixTagViewModel(application: Application) : AndroidViewModel(application) 
                 snap.hasAar(pkg) -> FixEntry(true, "Already set up", url, uid)
                 !snap.isWritable -> FixEntry(false, "Tag is locked (read-only)", url, uid)
                 else -> {
-                    NfcTags.write(tag, NfcTags.buildMessage(url, pkg))
-                    val note = if (snap.recordCount > 1) " (other records replaced)" else ""
+                    // Keep whatever else is on the tag (e.g. a text record) if it still fits.
+                    val keepAll = snap.message?.let { NfcTags.withAar(it, pkg) }
+                        ?.takeIf { snap.maxSize == 0 || it.byteArrayLength <= snap.maxSize }
+                    NfcTags.write(tag, keepAll ?: NfcTags.buildMessage(url, pkg))
+                    val note = if (keepAll == null && snap.recordCount > 1) " (no room for the other records)" else ""
                     FixEntry(true, "Added $pkg$note", url, uid)
                 }
             }

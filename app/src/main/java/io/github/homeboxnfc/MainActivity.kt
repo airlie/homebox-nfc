@@ -20,6 +20,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        val store = (application as HomeboxNfcApplication).store
+        if (store.hasPending) store.syncSoon()
         // Reader mode: while the app is in front, tags come straight to us instead of
         // the system opening them (which would launch Chrome mid-batch).
         val extras = Bundle().apply { putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250) }

@@ -22,6 +22,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,7 +59,18 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
     var password by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf("") }
     var loggedIn by remember { mutableStateOf(homebox.hasToken) }
-    var aarPackage by remember { mutableStateOf(prefs.aarPackage) }
+    var openWith by remember {
+        mutableStateOf(
+            when (prefs.aarPackage.trim()) {
+                CHROME -> OpenWith.CHROME
+                "" -> OpenWith.DEFAULT
+                else -> OpenWith.OTHER
+            }
+        )
+    }
+    var customPackage by remember { mutableStateOf(prefs.aarPackage.trim().takeIf { it != CHROME }.orEmpty()) }
+    var includeName by remember { mutableStateOf(prefs.includeName) }
+    DisposableEffect(Unit) { onDispose { app.store.onSettingsChanged() } }
     var tagName by remember { mutableStateOf(prefs.nfcTagName) }
     var fieldName by remember { mutableStateOf(prefs.nfcFieldName) }
     var verifiedField by remember { mutableStateOf(prefs.verifiedFieldName) }
@@ -224,36 +236,78 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
         }
         status?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
-        Section("What gets written")
-        OutlinedTextField(
-            value = aarPackage,
-            onValueChange = { aarPackage = it; prefs.aarPackage = it.trim() },
-            label = { Text("App record package") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-        )
-        Hint("Tags open in this app. Leave blank to write the URL only.")
+        Section("Tag contents")
+        Hint("Every tag gets a link to the entry's Homebox page.")
+        Text("When the tag is tapped, open the link in", style = MaterialTheme.typography.bodyLarge)
+        fun setOpenWith(mode: OpenWith) {
+            openWith = mode
+            prefs.aarPackage = when (mode) {
+                OpenWith.CHROME -> CHROME
+                OpenWith.DEFAULT -> ""
+                OpenWith.OTHER -> customPackage.trim()
+            }
+        }
+        OpenWith.entries.forEach { mode ->
+            Row(
+                Modifier.fillMaxWidth().clickable { setOpenWith(mode) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = openWith == mode, onClick = { setOpenWith(mode) })
+                Column {
+                    Text(mode.label)
+                    Text(mode.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        if (openWith == OpenWith.OTHER) {
+            OutlinedTextField(
+                value = customPackage,
+                onValueChange = { customPackage = it; prefs.aarPackage = it.trim() },
+                label = { Text("App package name") },
+                placeholder = { Text("org.mozilla.firefox") },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        ToggleRow(
+            "Write the entry's name on the tag",
+            "Adds a text record so NFC reader apps show what the tag is for. Shortened if the tag is small.",
+            includeName,
+        ) { includeName = it; prefs.includeName = it }
+
+        Section("Homebox updates")
+        Hint("Recorded in Homebox when a tag is written or an item is checked in Inventory. Leave a box empty to skip it.")
         OutlinedTextField(
             value = tagName,
             onValueChange = { tagName = it; prefs.nfcTagName = it.trim() },
-            label = { Text("Homebox tag for tagged entries") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            label = { Text("Homebox tag for entries with an NFC tag") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            supportingText = { Text("Batch write uses it to skip entries that already have a tag.") },
         )
         OutlinedTextField(
             value = fieldName,
             onValueChange = { fieldName = it; prefs.nfcFieldName = it.trim() },
-            label = { Text("Custom field for tag ID (blank = skip)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            label = { Text("Custom field for the tag's ID and date") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = verifiedField,
             onValueChange = { verifiedField = it; prefs.verifiedFieldName = it.trim() },
-            label = { Text("Inventory: field for verified date (blank = skip)") }, singleLine = true,
+            label = { Text("Custom field for the date Inventory last saw it") }, singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
     }
 }
 
+private const val CHROME = "com.android.chrome"
+
+private enum class OpenWith(val label: String, val detail: String) {
+    CHROME("Chrome", "Opens straight away with no app chooser. Recommended."),
+    DEFAULT("Default browser", "Link only. Android uses your default browser, or asks which app to use."),
+    OTHER("Another app", "Forces a specific app, by package name."),
+}
+
 @Composable
 private fun Section(title: String) {
-    HorizontalDivider(Modifier.padding(top = 8.dp))
-    Text(title, style = MaterialTheme.typography.titleMedium)
+    HorizontalDivider(Modifier.padding(top = 16.dp, bottom = 4.dp))
+    Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
 }
 
 @Composable

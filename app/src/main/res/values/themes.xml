@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only shows before Compose draws (launch); follows the system light/dark setting. -->
+    <style name="Theme.HomeboxNfc" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

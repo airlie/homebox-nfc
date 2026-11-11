@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -29,10 +32,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.homeboxnfc.HomeboxNfcApplication
 import io.github.homeboxnfc.nfc.TagBus
 
 @Composable
-fun InventoryScreen(vm: InventoryViewModel = viewModel()) {
+fun InventoryScreen(app: HomeboxNfcApplication, vm: InventoryViewModel = viewModel()) {
     DisposableEffect(vm) {
         TagBus.handler = vm::onTag
         onDispose { TagBus.handler = null }
@@ -48,31 +52,32 @@ fun InventoryScreen(vm: InventoryViewModel = viewModel()) {
         item { ui.message?.let { MessageCard(it, ui.messageKind) } }
 
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Current location", style = MaterialTheme.typography.labelMedium)
-                    Text(current?.path ?: "None yet", style = MaterialTheme.typography.titleLarge)
-                }
-                if (ui.loading) CircularProgressIndicator(Modifier.padding(8.dp))
-                TextButton(onClick = { vm.showPicker(!ui.picking) }, enabled = ui.locations.isNotEmpty()) {
-                    Text(if (ui.picking) "Close" else "Pick")
-                }
-            }
+            ListItem(
+                leadingContent = { Icon(Icons.Filled.Place, contentDescription = null) },
+                overlineContent = { Text("Current location") },
+                headlineContent = { Text(current?.path ?: "None yet", style = MaterialTheme.typography.titleLarge) },
+                trailingContent = {
+                    TextButton(onClick = { vm.showPicker(!ui.picking) }, enabled = ui.locations.isNotEmpty()) {
+                        Text(if (ui.picking && current != null) "Cancel" else "Change")
+                    }
+                },
+            )
             ToggleRow(
                 "Count sub-locations as here",
                 "An item on a shelf inside this room is verified, not moved",
                 ui.acceptSubLocations,
                 vm::setAcceptSubLocations,
             )
+            SavedDataLine(app)
         }
 
         ui.nestOffer?.let { offer ->
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Switched from ${offer.parent.name} to ${offer.child.name}.")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = vm::acceptNest) { Text("Put ${offer.child.name} in ${offer.parent.name}") }
+                            Button(onClick = vm::acceptNest) { Text("Put it in ${offer.parent.name}") }
                             OutlinedButton(onClick = vm::dismissNest) { Text("Just switch") }
                         }
                     }
@@ -81,16 +86,14 @@ fun InventoryScreen(vm: InventoryViewModel = viewModel()) {
         }
 
         if (ui.picking || current == null) {
-            if (ui.locations.isEmpty() && !ui.loading) {
-                item { TextButton(onClick = vm::reload) { Text("Load locations") } }
-            }
+            item { HorizontalDivider() }
             items(ui.locations, key = { "loc-" + it.node.id }) { opt ->
                 Text(
                     opt.node.name,
                     Modifier
                         .fillMaxWidth()
                         .clickable { vm.pickLocation(opt) }
-                        .padding(start = (opt.depth * 20).dp, top = 10.dp, bottom = 10.dp),
+                        .padding(start = (opt.depth * 20 + 8).dp, top = 12.dp, bottom = 12.dp),
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
@@ -118,11 +121,10 @@ fun InventoryScreen(vm: InventoryViewModel = viewModel()) {
             }
         }
 
-        item { Text("Scans", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp)) }
-        items(ui.log, key = { it.key }) { entry -> LogRow(entry) { vm.undo(entry) } }
-        item {
-            TextButton(onClick = vm::reload, enabled = !ui.loading) { Text("Refresh from Homebox") }
+        if (ui.log.isNotEmpty()) {
+            item { Text("Scans", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp)) }
         }
+        items(ui.log, key = { it.key }) { entry -> LogRow(entry) { vm.undo(entry) } }
     }
 }
 
@@ -132,8 +134,7 @@ private fun LogRow(entry: InvEntry, onUndo: () -> Unit) {
     val bg = when (entry.outcome) {
         InvOutcome.VERIFIED -> scheme.primaryContainer
         InvOutcome.MOVED -> scheme.tertiaryContainer
-        InvOutcome.LOCATION -> scheme.surfaceVariant
-        InvOutcome.WARNING -> scheme.tertiaryContainer
+        InvOutcome.LOCATION -> scheme.surfaceContainerHigh
         InvOutcome.ERROR -> scheme.errorContainer
     }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = bg)) {

@@ -21,7 +21,13 @@ import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 class HomeboxException(message: String, val kind: Kind = Kind.OTHER) : Exception(message) {
-    enum class Kind { NOT_CONFIGURED, NEEDS_LOGIN, ACCESS_BLOCKED, OTHER }
+    /**
+     * NETWORK covers anything worth retrying later (no connection, timeouts, 5xx, 429).
+     * NOT_CONFIGURED / NEEDS_LOGIN / ACCESS_BLOCKED need the user to fix something in Settings.
+     */
+    enum class Kind { NOT_CONFIGURED, NEEDS_LOGIN, ACCESS_BLOCKED, NETWORK, NOT_FOUND, OTHER }
+
+    val needsUser: Boolean get() = kind == Kind.NOT_CONFIGURED || kind == Kind.NEEDS_LOGIN || kind == Kind.ACCESS_BLOCKED
 }
 
 /** A node from /entities/tree. [type] is "location" or "item". */
@@ -192,16 +198,6 @@ class HomeboxClient(
     }
 
     /**
-     * Adds Homebox tag [tagId] to the entity (PATCH, which leaves every other field alone),
-     * then, if [fieldName] is set, records [fieldValue] in that custom text field.
-     */
-    fun markTagged(entityId: String, tagId: String, fieldName: String?, fieldValue: String) {
-        val info = entityInfo(entityId)
-        if (tagId !in info.tagIds) patch(entityId, tagIds = info.tagIds + tagId)
-        if (!fieldName.isNullOrBlank()) setTextFields(entityId, mapOf(fieldName to fieldValue))
-    }
-
-    /**
      * Builds a full EntityUpdate from an EntityOut. PUT replaces every field, so we start from
      * the server's own copy and only rename the edge fields, which keeps everything else intact.
      */
@@ -277,7 +273,10 @@ class HomeboxClient(
         } catch (e: HomeboxException) {
             throw e
         } catch (e: IOException) {
-            throw HomeboxException("Network error: ${e.message ?: e.javaClass.simpleName}")
+            throw HomeboxException(
+                "Can't reach Homebox (${e.message ?: e.javaClass.simpleName}).",
+                HomeboxException.Kind.NETWORK,
+            )
         }
 
         response.use { r ->
@@ -288,7 +287,12 @@ class HomeboxClient(
                 if ("cloudflareaccess.com" in location || "/cdn-cgi/access" in location) throw accessBlocked()
                 throw HomeboxException("Unexpected redirect to $location. Check the Homebox address.")
             }
+            // Checked before the HTML test: Cloudflare's 52x error pages are HTML too.
+            if (r.code >= 500 || r.code == 408 || r.code == 429) {
+                throw HomeboxException("Homebox is unavailable right now (${r.code}).", HomeboxException.Kind.NETWORK)
+            }
             if (contentType.startsWith("text/html")) throw accessBlocked()
+            if (r.code == 404) throw HomeboxException("Not found in Homebox (it may have been deleted).", HomeboxException.Kind.NOT_FOUND)
             if (r.code == 401) {
                 throw if (auth) {
                     HomeboxException("Homebox login expired. Log in again in Settings.", HomeboxException.Kind.NEEDS_LOGIN)
