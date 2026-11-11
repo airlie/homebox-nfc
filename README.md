@@ -3,7 +3,7 @@
 An Android app for putting [Homebox](https://github.com/sysadminsmedia/homebox) inventory links on NFC tags.
 
 - **Write one tag**: search for an item or location, pick it, tap a tag.
-- **Batch write**: pick a Homebox location. The app lists every entry under it that doesn't have a tag yet
+- **Batch write**: pick a Homebox location (or scan its tag). The app lists every entry under it that doesn't have a tag yet
   and walks you through them one at a time. Tap a tag, it gets written and checked, and the next one comes
   up. Progress is saved after every tag, so you can stop and pick up later.
 - **Inventory**: scan a location tag (or pick a location), then scan item tags. Items Homebox already
@@ -53,9 +53,10 @@ An NTAG213 (144 bytes) is enough. A full Homebox item URL plus the AAR is about 
 When a tag is written, the app:
 
 - adds the Homebox tag **NFC Tagged** to the entry (created if missing), and
-- sets a custom text field **NFC Tag** to the tag's UID and the date, e.g. `04:A2:3B:1C:55:80:00 (2026-11-10)`.
+- sets a custom text field **NFC Tag** to the tag's UID, e.g. `04:A2:3B:1C:55:80:00`, and
+- sets **Location verified** to today's date (you're standing next to it).
 
-Inventory also sets **Location verified** to the date it last saw the item. All three names can be
+Inventory also sets **Location verified** when it sees the item, and fills in **NFC Tag** if it's empty. All three names can be
 changed in Settings, and leaving one empty turns it off. Batch write uses the **NFC Tagged** tag to
 skip entries that are already done.
 
@@ -72,7 +73,7 @@ If Homebox sits behind Cloudflare Access, the app supports:
 | --- | --- |
 | Client certificate (mTLS) | Install the cert under *Settings › Security › Encryption & credentials › Install a certificate › VPN & app user certificate*, then pick it in the app. This is the same setup the Home Assistant app uses. |
 | Service token | Create one under *Zero Trust › Access › Service auth* and add a *Service Auth* policy to the Homebox application. |
-| Sign in with browser | Logs in through the normal Access page in an embedded browser and keeps the `CF_Authorization` cookie. You'll have to redo it when the Access session expires. |
+| Sign in with browser | Logs in through the normal Access page in an embedded browser and keeps the `CF_Authorization` cookie. The home screen shows when the sign-in expires, and a banner with a Sign in button appears once it has. Changes made meanwhile wait on the phone. |
 | None | Use this when `/api/*` isn't behind Access (for example, a bypass rule). |
 
 Chrome handles Access on its own when a tag opens a link, so it needs the cert installed or a

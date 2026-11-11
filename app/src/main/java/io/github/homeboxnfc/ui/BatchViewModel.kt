@@ -6,6 +6,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.homeboxnfc.HomeboxNfcApplication
 import io.github.homeboxnfc.homebox.TreeNode
+import io.github.homeboxnfc.nfc.NfcTags
+import io.github.homeboxnfc.nfc.TagException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -68,6 +70,8 @@ enum class MessageKind { INFO, SUCCESS, WARNING, ERROR }
 
 data class BatchUi(
     val session: BatchSession? = null,
+    /** Location picked (or scanned) on the setup screen. */
+    val selectedRootId: String? = null,
     val message: String? = null,
     val messageKind: MessageKind = MessageKind.INFO,
 )
@@ -89,6 +93,8 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
         _ui.value.session?.current?.let { say("Resuming. Tap a tag for: ${it.name}", MessageKind.INFO) }
         store.refreshIfOlderThan(60_000)
     }
+
+    fun select(id: String?) = _ui.update { it.copy(selectedRootId = id) }
 
     fun start(option: LocationOption, recursive: Boolean, includeLocations: Boolean) {
         buildSession(option.node.id, option.path, recursive, includeLocations, done = emptySet())
@@ -141,7 +147,7 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Called on the NFC thread while the tag is in the field. */
     fun onTag(tag: Tag) {
-        val session = _ui.value.session ?: return
+        val session = _ui.value.session ?: return selectByTag(tag)
         val item = session.current ?: return
         when (val r = writer.write(tag, item.id, item.isLocation, item.name)) {
             is TagWriter.Result.SameAsLast -> {
@@ -160,6 +166,38 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
                 app.feedback.success()
                 writer.queueMark(item.id, item.name, r.uid)
                 advance(item, "✓ ${item.name}")
+            }
+        }
+    }
+
+    /** Before a run starts: a location's tag picks that location. */
+    private fun selectByTag(tag: Tag) {
+        val url = try {
+            NfcTags.read(tag).url
+        } catch (e: TagException) {
+            app.feedback.error()
+            say(e.message.orEmpty(), MessageKind.ERROR)
+            return
+        }
+        val id = url?.let { app.homebox.parseEntityUrl(it)?.second }
+        val node = id?.let { store.view.value?.index?.get(it) }
+        when {
+            url == null -> {
+                app.feedback.warning()
+                say("That tag is empty. Scan a location's tag to pick it.", MessageKind.WARNING)
+            }
+            node == null -> {
+                app.feedback.warning()
+                say("That tag isn't for a location in the saved Homebox data.", MessageKind.WARNING)
+            }
+            !node.isLocation -> {
+                app.feedback.warning()
+                say("That's the tag for ${node.name}, an item. Scan a location's tag to pick it.", MessageKind.WARNING)
+            }
+            else -> {
+                app.feedback.success()
+                _ui.update { it.copy(selectedRootId = node.id) }
+                say("Picked ${node.name}. Tap Start when ready.", MessageKind.SUCCESS)
             }
         }
     }
@@ -196,7 +234,7 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
     fun endSession() {
         prefs.batchSessionJson = ""
         writer.forgetLast()
-        _ui.update { BatchUi() }
+        _ui.update { BatchUi(selectedRootId = it.selectedRootId) }
     }
 
     private fun save(s: BatchSession) {

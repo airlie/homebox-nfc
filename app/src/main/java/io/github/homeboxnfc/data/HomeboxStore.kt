@@ -145,6 +145,14 @@ class HomeboxStore(
         if (hasPending) syncSoon()
     }
 
+    /** Call after signing in to Cloudflare or Homebox: retry everything that was blocked. */
+    fun onSignedIn() {
+        _status.update { it.copy(problem = null, needsUser = false) }
+        homebox.resetConnection()
+        refreshIfOlderThan(0)
+        if (hasPending) syncSoon()
+    }
+
     // ---- network ------------------------------------------------------------------------
 
     fun syncSoon() {
@@ -169,10 +177,16 @@ class HomeboxStore(
                 snapshotFile.writeText(fresh.toJson())
             }
             recompute()
-            _status.update { it.copy(refreshError = null) }
+            _status.update {
+                // Getting this far means login and Cloudflare are fine.
+                if (it.needsUser) it.copy(refreshError = null, problem = null, needsUser = false) else it.copy(refreshError = null)
+            }
             null
         } catch (e: HomeboxException) {
-            _status.update { it.copy(refreshError = e.message) }
+            _status.update {
+                if (e.needsUser) it.copy(refreshError = e.message, problem = e.message, needsUser = true)
+                else it.copy(refreshError = e.message)
+            }
             e.message
         } catch (e: Exception) {
             val msg = "Couldn't read Homebox data: ${e.message ?: e.javaClass.simpleName}"

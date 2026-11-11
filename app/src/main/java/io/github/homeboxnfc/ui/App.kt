@@ -111,6 +111,9 @@ fun App(activity: ComponentActivity, nfcAdapter: NfcAdapter?) {
         ) { padding ->
             Column(Modifier.padding(padding).fillMaxSize()) {
                 NfcBanner(nfcAdapter)
+                if (screen != Screen.WEB_LOGIN) {
+                    AccessBanner(app, signIn = { screen = Screen.WEB_LOGIN }, openSettings = { screen = Screen.SETTINGS })
+                }
                 Column(Modifier.weight(1f).fillMaxWidth()) {
                     when (screen) {
                         Screen.HOME -> HomeScreen(app) { screen = it }
@@ -209,10 +212,21 @@ private fun HomeScreen(app: HomeboxNfcApplication, navigate: (Screen) -> Unit) {
             navigate(Screen.FIX)
         }
         if (configured) {
-            Column(Modifier.padding(horizontal = 16.dp)) { SavedDataLine(app) }
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                SavedDataLine(app)
+                if (app.prefs.accessMode == io.github.homeboxnfc.data.AccessMode.BROWSER_COOKIE) {
+                    // Worth a glance before heading somewhere without signal.
+                    Text(
+                        "Cloudflare: " + cloudflareSignInText(app).replaceFirstChar { it.lowercase() },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
         Text(
-            "While this app is open it handles every tag itself, so tapping a tag won't open a browser.",
+            "While this app is open it handles every tag itself, so tapping a tag won't open a browser.\n" +
+                "Version ${appVersion(LocalContext.current)}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(16.dp),

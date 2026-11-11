@@ -201,7 +201,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 parentId = if (inPlace) null else loc.id,
                 addTag = addTag,
                 setFields = verified?.let { mapOf(it to today) } ?: emptyMap(),
-                setFieldsIfEmpty = nfcField?.let { mapOf(it to "$uid ($today)") } ?: emptyMap(),
+                setFieldsIfEmpty = nfcField?.let { mapOf(it to uid) } ?: emptyMap(),
             )
         )
         _ui.update { it.copy(found = it.found + id) }

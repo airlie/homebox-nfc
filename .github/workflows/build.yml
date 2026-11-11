@@ -42,7 +42,8 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION_NAME="${GITHUB_REF_NAME#v}"
           else
-            VERSION_NAME="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+            BASE=$(grep "^appVersion=" gradle.properties | cut -d= -f2)
+            VERSION_NAME="${BASE}-dev.${GITHUB_RUN_NUMBER}"
           fi
           ./gradlew assembleRelease -PversionName="$VERSION_NAME" -PversionCode="$GITHUB_RUN_NUMBER"
           mv app/build/outputs/apk/release/app-release.apk "homebox-nfc-${VERSION_NAME}.apk"

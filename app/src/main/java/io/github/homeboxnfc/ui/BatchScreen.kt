@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,20 +56,31 @@ fun BatchScreen(app: HomeboxNfcApplication, vm: BatchViewModel = viewModel()) {
 
     Column(Modifier.padding(horizontal = 16.dp)) {
         ui.message?.let { MessageCard(it, ui.messageKind) }
-        if (session == null) SetupView(app, vm) else RunView(app, session, vm)
+        if (session == null) SetupView(app, ui, vm) else RunView(app, session, vm)
     }
 }
 
 @Composable
-private fun SetupView(app: HomeboxNfcApplication, vm: BatchViewModel) {
+private fun SetupView(app: HomeboxNfcApplication, ui: BatchUi, vm: BatchViewModel) {
     val view by app.store.view.collectAsStateWithLifecycle()
     val locations = view?.index?.locationOptions.orEmpty()
-    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedId = ui.selectedRootId
+    val listState = rememberLazyListState()
     var recursive by rememberSaveable { mutableStateOf(true) }
     var includeLocations by rememberSaveable { mutableStateOf(false) }
     val selected = locations.firstOrNull { it.node.id == selectedId }
+    // Bring a scanned location into view.
+    LaunchedEffect(selectedId) {
+        val i = locations.indexOfFirst { it.node.id == selectedId }
+        if (i >= 0 && listState.layoutInfo.visibleItemsInfo.none { it.index == i }) listState.animateScrollToItem(i)
+    }
 
     Column {
+        Text(
+            "Pick a location below, or scan its tag.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         ToggleRow("Include sub-locations", "Everything nested below the chosen location", recursive) { recursive = it }
         ToggleRow("Tag locations too", "Also queue sub-locations themselves, like boxes set up as locations", includeLocations) {
             includeLocations = it
@@ -79,16 +92,16 @@ private fun SetupView(app: HomeboxNfcApplication, vm: BatchViewModel) {
         ) { Text(selected?.let { "Start: ${it.node.name}" } ?: "Pick a location below") }
         SavedDataLine(app)
         HorizontalDivider()
-        LazyColumn {
+        LazyColumn(state = listState) {
             items(locations, key = { it.node.id }) { opt ->
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { selectedId = opt.node.id }
+                        .clickable { vm.select(opt.node.id) }
                         .padding(start = (opt.depth * 20).dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RadioButton(selected = selectedId == opt.node.id, onClick = { selectedId = opt.node.id })
+                    RadioButton(selected = selectedId == opt.node.id, onClick = { vm.select(opt.node.id) })
                     Text(opt.node.name, style = MaterialTheme.typography.bodyLarge)
                 }
             }

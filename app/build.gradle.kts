@@ -17,7 +17,8 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
-        versionName = (findProperty("versionName") as String?) ?: "0.1.0"
+        // CI passes versionName; local builds get "<appVersion>-local".
+        versionName = (findProperty("versionName") as String?) ?: "${findProperty("appVersion")}-local"
     }
 
     signingConfigs {

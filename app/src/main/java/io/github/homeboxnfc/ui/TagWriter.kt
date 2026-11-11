@@ -60,18 +60,24 @@ class TagWriter(private val app: HomeboxNfcApplication) {
         armedOverwriteUid = null
     }
 
-    /** Queues "this entry now has an NFC tag" for Homebox. */
+    /**
+     * Queues "this entry now has an NFC tag" for Homebox: the NFC tag, the tag's UID, and
+     * today's date as last verified (you're standing next to it, so it's where it should be).
+     */
     fun queueMark(entryId: String, name: String, uid: String) {
         val prefs = app.prefs
         val store = app.store
+        val fields = buildMap {
+            prefs.nfcFieldName.trim().takeIf { it.isNotBlank() }?.let { put(it, uid) }
+            prefs.verifiedFieldName.trim().takeIf { it.isNotBlank() }?.let { put(it, LocalDate.now().toString()) }
+        }
         store.enqueue(
             store.newChange(
                 entityId = entryId,
                 entityName = name,
                 summary = "Tag written",
                 addTag = prefs.nfcTagName,
-                setFields = prefs.nfcFieldName.trim().takeIf { it.isNotBlank() }
-                    ?.let { mapOf(it to "$uid (${LocalDate.now()})") } ?: emptyMap(),
+                setFields = fields,
             )
         )
     }

@@ -54,7 +54,6 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
     var certAlias by remember { mutableStateOf(prefs.certAlias) }
     var cfClientId by remember { mutableStateOf(prefs.cfClientId) }
     var cfClientSecret by remember { mutableStateOf(app.secrets[SecretStore.CF_CLIENT_SECRET].orEmpty()) }
-    val hasCfCookie = remember { app.secrets[SecretStore.CF_COOKIE] != null }
     var username by remember { mutableStateOf(prefs.username) }
     var password by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf("") }
@@ -167,7 +166,7 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
                 Hint("Signs in through the normal Access page. You'll need to repeat this when the Access session expires.")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = openWebLogin, enabled = serverUrl.isNotBlank()) { Text("Sign in") }
-                    Text(if (hasCfCookie) "Signed in" else "Not signed in")
+                    Text(cloudflareSignInText(app))
                 }
             }
             AccessMode.NONE -> Hint("Pick this if /api/ is reachable without Access (for example, a bypass rule for /api/*).")
@@ -198,6 +197,7 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
                         val msg = withContext(Dispatchers.IO) { homebox.login(username.trim(), password) }
                         password = ""
                         loggedIn = true
+                        app.store.onSignedIn()
                         msg
                     }
                 },
@@ -211,7 +211,7 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
                 modifier = Modifier.fillMaxWidth(),
             )
             TextButton(
-                onClick = { homebox.setApiKey(apiKey); apiKey = ""; loggedIn = true },
+                onClick = { homebox.setApiKey(apiKey); apiKey = ""; loggedIn = true; app.store.onSignedIn() },
                 enabled = apiKey.isNotBlank(),
             ) { Text("Use API key") }
         }
@@ -285,15 +285,31 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
         OutlinedTextField(
             value = fieldName,
             onValueChange = { fieldName = it; prefs.nfcFieldName = it.trim() },
-            label = { Text("Custom field for the tag's ID and date") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            label = { Text("Custom field for the tag's ID") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = verifiedField,
             onValueChange = { verifiedField = it; prefs.verifiedFieldName = it.trim() },
-            label = { Text("Custom field for the date Inventory last saw it") }, singleLine = true,
+            label = { Text("Custom field for the date it was last seen in place") }, singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+            supportingText = { Text("Set when a tag is written and when Inventory checks the item.") },
         )
+
+        Section("About")
+        Text("Homebox NFC ${appVersion(activity)}", style = MaterialTheme.typography.bodyLarge)
+        TextButton(onClick = {
+            activity.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(REPO_URL)))
+        }) { Text("Source code and releases on GitHub") }
     }
+}
+
+private const val REPO_URL = "https://github.com/airlie/homebox-nfc"
+
+/** versionName from the installed package, e.g. "0.2.0" or "0.2.0-dev.14". */
+internal fun appVersion(context: android.content.Context): String = try {
+    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+} catch (e: Exception) {
+    "?"
 }
 
 private const val CHROME = "com.android.chrome"

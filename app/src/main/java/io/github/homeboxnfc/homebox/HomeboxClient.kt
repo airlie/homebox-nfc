@@ -306,7 +306,14 @@ class HomeboxClient(
     }
 
     private fun accessBlocked() = HomeboxException(
-        "Cloudflare Access is blocking the app. Set up a client certificate, service token, or browser sign-in in Settings.",
+        when (prefs.accessMode) {
+            AccessMode.BROWSER_COOKIE ->
+                if (secrets[SecretStore.CF_COOKIE].isNullOrBlank()) "Not signed in to Cloudflare. Sign in to reach Homebox."
+                else "Your Cloudflare sign-in has expired. Sign in again to reach Homebox."
+            AccessMode.CLIENT_CERT -> "Cloudflare Access didn't accept the client certificate. Check it in Settings."
+            AccessMode.SERVICE_TOKEN -> "Cloudflare Access didn't accept the service token. Check it in Settings."
+            AccessMode.NONE -> "Cloudflare Access is blocking the app. Choose a way past it in Settings."
+        },
         HomeboxException.Kind.ACCESS_BLOCKED,
     )
 

@@ -39,7 +39,11 @@ fun WebLoginScreen(app: HomeboxNfcApplication, onDone: () -> Unit) {
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 var finished = false
-                CookieManager.getInstance().setAcceptCookie(true)
+                CookieManager.getInstance().apply {
+                    setAcceptCookie(true)
+                    // Drop the old Access cookie so an expired or revoked session gets a fresh sign-in.
+                    setCookie(base, "CF_Authorization=; Max-Age=0")
+                }
                 WebView(ctx).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
@@ -54,6 +58,7 @@ fun WebLoginScreen(app: HomeboxNfcApplication, onDone: () -> Unit) {
                             if (!cookie.isNullOrBlank()) {
                                 finished = true
                                 app.secrets[SecretStore.CF_COOKIE] = cookie
+                                app.store.onSignedIn()
                                 onDone()
                             }
                         }
