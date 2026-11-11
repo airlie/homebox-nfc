@@ -117,6 +117,14 @@ base64 -w0 release.jks   # paste into SIGNING_KEYSTORE_BASE64
 Secrets: `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`.
 Keep `release.jks` out of the repo; `.gitignore` already excludes it.
 
+## How this was made
+
+This app was written with AI assistance (Anthropic's Claude, through Claude Code).
+I described what I wanted, tested each build on my own phone against my own
+Homebox, and decided what went in. The AI wrote most of the code. It's a personal
+project shared as is: read the code before trusting it with data you care about,
+and back up your Homebox first.
+
 ## License
 
 MIT
