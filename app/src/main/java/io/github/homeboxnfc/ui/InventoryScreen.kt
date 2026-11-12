@@ -1,6 +1,5 @@
 package io.github.homeboxnfc.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,14 +8,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -33,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.homeboxnfc.HomeboxNfcApplication
+import io.github.homeboxnfc.SpeakMode
 import io.github.homeboxnfc.nfc.TagBus
 
 @Composable
@@ -51,32 +47,6 @@ fun InventoryScreen(app: HomeboxNfcApplication, vm: InventoryViewModel = viewMod
     ) {
         item { ui.message?.let { MessageCard(it, ui.messageKind) } }
 
-        item {
-            ListItem(
-                leadingContent = { Icon(Icons.Filled.Place, contentDescription = null) },
-                overlineContent = { Text("Current location") },
-                headlineContent = { Text(current?.path ?: "None yet", style = MaterialTheme.typography.titleLarge) },
-                trailingContent = {
-                    TextButton(onClick = { vm.showPicker(!ui.picking) }, enabled = ui.locations.isNotEmpty()) {
-                        Text(if (ui.picking && current != null) "Cancel" else "Change")
-                    }
-                },
-            )
-            ToggleRow(
-                "Count sub-locations as here",
-                "An item on a shelf inside this room is verified, not moved",
-                ui.acceptSubLocations,
-                vm::setAcceptSubLocations,
-            )
-            ToggleRow(
-                "Fix tags as they're scanned",
-                "Same as Fix tag: updates an old Homebox address and adds the app record",
-                ui.fixTags,
-                vm::setFixTags,
-            )
-            SavedDataLine(app)
-        }
-
         ui.nestOffer?.let { offer ->
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
@@ -91,18 +61,25 @@ fun InventoryScreen(app: HomeboxNfcApplication, vm: InventoryViewModel = viewMod
             }
         }
 
+        item {
+            SpeakToggle(app, SpeakMode.INVENTORY, "Says each location and item as it's scanned")
+            ToggleRow(
+                "Count sub-locations as here",
+                "An item on a shelf inside this room is verified, not moved",
+                ui.acceptSubLocations,
+                vm::setAcceptSubLocations,
+            )
+            ToggleRow(
+                "Fix tags as they're scanned",
+                "Same as Fix tag: updates an old Homebox address and adds the app record",
+                ui.fixTags,
+                vm::setFixTags,
+            )
+            LocationHeader(app, "Location", current?.path, ui.picking || current == null) { vm.showPicker(!ui.picking) }
+        }
+
         if (ui.picking || current == null) {
-            item { HorizontalDivider() }
-            items(ui.locations, key = { "loc-" + it.node.id }) { opt ->
-                Text(
-                    opt.node.name,
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { vm.pickLocation(opt) }
-                        .padding(start = (opt.depth * 20 + 8).dp, top = 12.dp, bottom = 12.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
+            locationList(ui.locations, current?.id, vm::pickLocation)
             return@LazyColumn
         }
 
@@ -125,6 +102,10 @@ fun InventoryScreen(app: HomeboxNfcApplication, vm: InventoryViewModel = viewMod
             items(ui.missing, key = { "missing-" + it.id }) { node ->
                 Text("• ${node.name}", Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
             }
+        }
+
+        item {
+            OutlinedButton(onClick = vm::finish, modifier = Modifier.fillMaxWidth()) { Text("Finish ${current.name}") }
         }
 
         if (ui.log.isNotEmpty()) {

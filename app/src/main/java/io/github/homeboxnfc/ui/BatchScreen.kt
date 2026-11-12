@@ -1,6 +1,5 @@
 package io.github.homeboxnfc.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,8 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,12 +23,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.homeboxnfc.HomeboxNfcApplication
+import io.github.homeboxnfc.SpeakMode
 import io.github.homeboxnfc.nfc.TagBus
 
 @Composable
@@ -65,47 +61,25 @@ private fun SetupView(app: HomeboxNfcApplication, ui: BatchUi, vm: BatchViewMode
     val view by app.store.view.collectAsStateWithLifecycle()
     val locations = view?.index?.locationOptions.orEmpty()
     val selectedId = ui.selectedRootId
-    val listState = rememberLazyListState()
     var recursive by rememberSaveable { mutableStateOf(true) }
     var includeLocations by rememberSaveable { mutableStateOf(false) }
     val selected = locations.firstOrNull { it.node.id == selectedId }
-    // Bring a scanned location into view.
-    LaunchedEffect(selectedId) {
-        val i = locations.indexOfFirst { it.node.id == selectedId }
-        if (i >= 0 && listState.layoutInfo.visibleItemsInfo.none { it.index == i }) listState.animateScrollToItem(i)
-    }
 
-    Column {
-        Text(
-            "Pick a location below, or scan its tag.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        ToggleRow("Include sub-locations", "Everything nested below the chosen location", recursive) { recursive = it }
-        ToggleRow("Tag locations too", "Also queue sub-locations themselves, like boxes set up as locations", includeLocations) {
-            includeLocations = it
-        }
-        Button(
-            onClick = { selected?.let { vm.start(it, recursive, includeLocations) } },
-            enabled = selected != null,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        ) { Text(selected?.let { "Start: ${it.node.name}" } ?: "Pick a location below") }
-        SavedDataLine(app)
-        HorizontalDivider()
-        LazyColumn(state = listState) {
-            items(locations, key = { it.node.id }) { opt ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { vm.select(opt.node.id) }
-                        .padding(start = (opt.depth * 20).dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = selectedId == opt.node.id, onClick = { vm.select(opt.node.id) })
-                    Text(opt.node.name, style = MaterialTheme.typography.bodyLarge)
-                }
+    LazyColumn {
+        item {
+            SpeakToggle(app, SpeakMode.BATCH, "Says the next entry to tag")
+            ToggleRow("Include sub-locations", "Everything nested below the chosen location", recursive) { recursive = it }
+            ToggleRow("Tag locations too", "Also queue sub-locations themselves, like boxes set up as locations", includeLocations) {
+                includeLocations = it
             }
+            LocationHeader(app, "Tag entries in", selected?.path, picking = true)
+            Button(
+                onClick = { selected?.let { vm.start(it, recursive, includeLocations) } },
+                enabled = selected != null,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            ) { Text(selected?.let { "Start: ${it.node.name}" } ?: "Pick a location to start") }
         }
+        locationList(locations, selectedId) { vm.select(it.node.id) }
     }
 }
 
@@ -165,6 +139,7 @@ private fun RunView(app: HomeboxNfcApplication, session: BatchSession, vm: Batch
         }
 
         HorizontalDivider()
+        SpeakToggle(app, SpeakMode.BATCH, "Says the next entry to tag")
         SavedDataLine(app)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = vm::refresh) { Text("Refresh list") }

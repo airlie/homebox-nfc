@@ -89,7 +89,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
         }
-        say("Scan a location tag, or pick a location.", MessageKind.INFO)
+        say(PICK_LOCATION_HINT, MessageKind.INFO)
         store.refreshIfOlderThan(60_000)
     }
 
@@ -107,6 +107,21 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     fun setFixTags(on: Boolean) {
         prefs.inventoryFixTags = on
         _ui.update { it.copy(fixTags = on) }
+    }
+
+    /** Done with this location: sum it up and clear it, ready for the next one. */
+    fun finish() {
+        val s = _ui.value
+        val loc = s.current ?: return
+        _ui.update {
+            it.copy(current = null, picking = true, found = emptySet(), expected = emptyList(), log = emptyList(), nestOffer = null)
+        }
+        val missing = s.missing.size
+        say(
+            "Finished ${loc.name}: found ${s.foundExpectedCount} of ${s.expected.size} expected" +
+                (if (missing > 0) ", $missing not seen." else ".") + " " + PICK_LOCATION_HINT,
+            MessageKind.SUCCESS,
+        )
     }
 
     fun pickLocation(option: LocationOption) {

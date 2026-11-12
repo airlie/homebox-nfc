@@ -67,9 +67,15 @@ class Prefs(context: Context) {
     var speakBatch by bool("speakBatch", false)
     var speakInventory by bool("speakInventory", false)
     var speakRead by bool("speakRead", false)
+    var speakAdd by bool("speakAdd", false)
     var speakStopAtSymbol by bool("speakStopAtSymbol", true)
-    var speakSkipWords by string("speakSkipWords", "box, bin, tote, crate, bag")
+    var speakSkipWords by string("speakSkipWords", "item, box, bin, tote, crate, bag")
     var speakMaxChars by int("speakMaxChars", 20)
+    /** Extra loudness for speech, in dB on top of the media volume (0 = none). */
+    var speakBoostDb by int("speakBoostDb", 9)
+
+    /** Keep the screen in portrait instead of following the phone's rotation. */
+    var lockPortrait by bool("lockPortrait", true)
 
     var accessMode: AccessMode
         get() = AccessMode.entries.firstOrNull { it.name == accessModeName } ?: AccessMode.NONE

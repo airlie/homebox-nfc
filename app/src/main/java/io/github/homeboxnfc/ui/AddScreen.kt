@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,12 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Card
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -35,6 +29,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.homeboxnfc.HomeboxNfcApplication
+import io.github.homeboxnfc.SpeakMode
 import io.github.homeboxnfc.nfc.TagBus
 
 @Composable
@@ -64,16 +59,8 @@ fun AddScreen(app: HomeboxNfcApplication, vm: AddViewModel = viewModel()) {
     ) {
         item { ui.message?.let { MessageCard(it, ui.messageKind) } }
         item {
-            ListItem(
-                leadingContent = { Icon(Icons.Filled.Place, contentDescription = null) },
-                overlineContent = { Text("Adding to") },
-                headlineContent = { Text(ui.location?.path ?: "Pick a location", style = MaterialTheme.typography.titleLarge) },
-                trailingContent = {
-                    if (ui.location != null) {
-                        TextButton(onClick = { vm.showPicker(!ui.picking) }) { Text(if (ui.picking) "Cancel" else "Change") }
-                    }
-                },
-            )
+            SpeakToggle(app, SpeakMode.ADD, "Says each new item's name")
+            ToggleRow("Take a photo of each item", "Opens the camera after the tag is written", ui.photo, vm::setPhoto)
             OutlinedTextField(
                 value = ui.name,
                 onValueChange = vm::setName,
@@ -82,26 +69,16 @@ fun AddScreen(app: HomeboxNfcApplication, vm: AddViewModel = viewModel()) {
                 modifier = Modifier.fillMaxWidth(),
                 supportingText = { Text("Leave empty for a short name like \"Item 3f9c\" that you can change in Homebox later.") },
             )
-            ToggleRow("Take a photo of each item", "Opens the camera after the tag is written", ui.photo, vm::setPhoto)
             Text(
                 "Adding needs a connection to Homebox, since Homebox gives each new item its ID.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            LocationHeader(app, "Add to", ui.location?.path, ui.picking || ui.location == null) { vm.showPicker(!ui.picking) }
         }
 
-        if (ui.picking) {
-            item { HorizontalDivider() }
-            items(ui.locations, key = { "loc-" + it.node.id }) { opt ->
-                Text(
-                    opt.node.name,
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { vm.pickLocation(opt) }
-                        .padding(start = (opt.depth * 20 + 8).dp, top = 12.dp, bottom = 12.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
+        if (ui.picking || ui.location == null) {
+            locationList(ui.locations, ui.location?.id, vm::pickLocation)
             return@LazyColumn
         }
 

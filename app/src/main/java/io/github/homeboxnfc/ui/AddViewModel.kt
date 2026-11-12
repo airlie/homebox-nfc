@@ -5,6 +5,7 @@ import android.nfc.Tag
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.homeboxnfc.HomeboxNfcApplication
+import io.github.homeboxnfc.SpeakMode
 import io.github.homeboxnfc.homebox.HomeboxException
 import io.github.homeboxnfc.nfc.NfcTags
 import io.github.homeboxnfc.nfc.TagException
@@ -71,7 +72,7 @@ class AddViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             store.view.collect { v -> _ui.update { it.copy(locations = v?.index?.locationOptions.orEmpty()) } }
         }
-        say("Pick where the new items are, or scan that location's tag.", MessageKind.INFO)
+        say(PICK_LOCATION_HINT, MessageKind.INFO)
         store.refreshIfOlderThan(60_000)
     }
 
@@ -121,7 +122,7 @@ class AddViewModel(application: Application) : AndroidViewModel(application) {
         val loc = _ui.value.location
         if (loc == null) {
             app.feedback.warning()
-            say("Pick a location first, or scan a location's tag.", MessageKind.WARNING)
+            say("Pick a location first. $PICK_LOCATION_HINT", MessageKind.WARNING)
             return
         }
         if (!snap.isEmpty && uid != armedOverwriteUid) {
@@ -164,6 +165,7 @@ class AddViewModel(application: Application) : AndroidViewModel(application) {
                         photoRequest = if (takePhoto) PhotoRequest(key, photoFile(id)) else null,
                     )
                 }
+                app.speaker.speak(SpeakMode.ADD, name)
                 say("✓ Added $name to ${loc.name}." + if (takePhoto) " Take its photo." else " Tap another blank tag to add more.", MessageKind.SUCCESS)
             }
             is TagWriter.Result.SameAsLast -> {

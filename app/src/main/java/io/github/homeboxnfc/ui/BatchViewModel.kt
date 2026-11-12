@@ -93,7 +93,7 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
         _ui.value.session?.current?.let {
             say("Resuming. Tap a tag for: ${it.name}", MessageKind.INFO)
             app.speaker.speak(SpeakMode.BATCH, it.name)
-        }
+        } ?: run { if (_ui.value.session == null) say(PICK_LOCATION_HINT, MessageKind.INFO) }
         store.refreshIfOlderThan(60_000)
     }
 
@@ -249,7 +249,9 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
     fun endSession() {
         prefs.batchSessionJson = ""
         writer.forgetLast()
-        _ui.update { BatchUi(selectedRootId = it.selectedRootId) }
+        val root = _ui.value.session?.rootName
+        _ui.update { BatchUi() } // the location is cleared too, ready for the next run
+        say((root?.let { "Ended the run for $it. " } ?: "") + PICK_LOCATION_HINT, MessageKind.INFO)
     }
 
     private fun save(s: BatchSession) {

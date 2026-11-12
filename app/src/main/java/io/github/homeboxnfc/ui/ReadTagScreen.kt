@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.homeboxnfc.HomeboxNfcApplication
+import io.github.homeboxnfc.SpeakMode
 import io.github.homeboxnfc.nfc.TagBus
 
 @Composable
@@ -56,6 +57,7 @@ fun ReadTagScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (!fix) {
+                SpeakToggle(app, SpeakMode.READ, "Says the entry the tag is for")
                 ToggleRow(
                     "Fix tags as they're read",
                     "Same as Fix tag: updates an old Homebox address" +

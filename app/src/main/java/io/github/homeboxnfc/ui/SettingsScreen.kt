@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -82,6 +83,8 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
     }
     val speakOn by app.speaker.enabled.collectAsStateWithLifecycle()
     var stopAtSymbol by remember { mutableStateOf(prefs.speakStopAtSymbol) }
+    var boostDb by remember { mutableStateOf(prefs.speakBoostDb.toFloat()) }
+    var lockPortrait by remember { mutableStateOf(prefs.lockPortrait) }
     var skipWords by remember { mutableStateOf(prefs.speakSkipWords) }
     var maxChars by remember { mutableStateOf(prefs.speakMaxChars.toString()) }
     var sampleName by remember { mutableStateOf("Box 12 - Christmas lights and ornaments") }
@@ -321,11 +324,23 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
             supportingText = { Text("Set when a tag is written and when Inventory checks the item.") },
         )
 
+        Section("Screen")
+        ToggleRow(
+            "Keep the screen upright",
+            "Stays in portrait however you turn the phone while tagging. Off follows the phone's auto-rotate setting.",
+            lockPortrait,
+        ) {
+            lockPortrait = it
+            prefs.lockPortrait = it
+            (activity as? io.github.homeboxnfc.MainActivity)?.applyOrientation()
+        }
+
         Section("Read names aloud")
-        Hint("Says the entry's name so you can find the next thing without looking at the screen. The speaker button on each screen switches it too.")
+        Hint("Says the entry's name so you can find the next thing without looking at the screen. Each screen also has its own switch for it.")
         listOf(
             SpeakMode.BATCH to ("Batch write" to "The next entry to tag"),
             SpeakMode.INVENTORY to ("Inventory" to "Each location and item as it's scanned"),
+            SpeakMode.ADD to ("Add items" to "The name of each new item"),
             SpeakMode.READ to ("Read tag" to "The entry the tag is for"),
         ).forEach { (mode, text) ->
             ToggleRow(text.first, text.second, mode in speakOn) { app.speaker.setOn(mode, it) }
@@ -364,6 +379,19 @@ fun SettingsScreen(activity: Activity, app: HomeboxNfcApplication, openWebLogin:
                 Text("Read as: \"$spoken\"")
             },
         )
+        Text(
+            if (boostDb.toInt() == 0) "Extra loudness: off" else "Extra loudness: +${boostDb.toInt()} dB",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Slider(
+            value = boostDb,
+            onValueChange = { boostDb = it },
+            onValueChangeFinished = { prefs.speakBoostDb = boostDb.toInt() },
+            valueRange = 0f..18f,
+            steps = 5,
+        )
+        Hint("Makes speech louder than the media volume alone, for noisy places. Very high settings can sound harsh on the phone speaker.")
         OutlinedButton(onClick = { app.speaker.say(app.speaker.shorten(sampleName)) }) { Text("Play") }
 
         Section("About")

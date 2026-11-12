@@ -2,10 +2,14 @@
 
 An Android app for putting [Homebox](https://github.com/sysadminsmedia/homebox) inventory links on NFC tags.
 
+> **Unofficial.** This is a personal project. It isn't made, endorsed or supported by the Homebox
+> project or sysadminsmedia. Please don't report problems with this app to the Homebox project.
+
 - **Write one tag**: search for an item or location, pick it, tap a tag.
 - **Batch write**: pick a Homebox location (or scan its tag). The app lists every entry under it that doesn't have a tag yet
   and walks you through them one at a time, in alphabetical order. Tap a tag, it gets written and checked, and the next one comes
-  up. Progress is saved after every tag, so you can stop and pick up later.
+  up. Progress is saved after every tag, so you can stop and pick up later. Ending the run clears the
+  location, ready for the next one.
 - **Add items**: for things that aren't in Homebox yet. Pick a location (or scan its tag), then tap
   blank tags: each one creates a new item there and gets written with its link. Type a name first,
   or leave it empty for a short automatic one like "Item 3f9c" to rename later. Tap one tag to add
@@ -17,7 +21,8 @@ An Android app for putting [Homebox](https://github.com/sysadminsmedia/homebox) 
   field if they were missing. The screen also lists the tagged items Homebox expects here that you
   haven't scanned. If you scan another location tag (say a box set up as a location), you can switch
   to it or put that box inside the previous location. A switch ("Fix tags as they're scanned", on by
-  default) does what Fix tag does to each tag scanned.
+  default) does what Fix tag does to each tag scanned. **Finish** sums up the location (found and not
+  seen) and clears it, ready for the next one.
 - **Read tag**: tap any tag to see what it holds. For a Homebox tag, that's the entry's name, where
   it is, and its **NFC Tag** and **Location verified** fields (from Homebox if it's reachable,
   otherwise from the saved data). For anything else, a plain list of the tag's records, its type and
@@ -26,6 +31,12 @@ An Android app for putting [Homebox](https://github.com/sysadminsmedia/homebox) 
 - **Fix tag**: tap tags to bring them up to date in one go: an old Homebox address is switched to the
   current one and the Android Application Record (AAR) is added if it's missing. Everything else
   on the tag is kept.
+
+## Screen layout
+
+Batch write, Inventory and Add items share one layout: the mode's switches at the top, then the
+location (with **Change**), then the list of locations to pick from. Scanning a location's tag picks it
+too.
 
 ## Moving Homebox to a new address
 
@@ -36,12 +47,17 @@ and keeps the tag's other records. Inventory and Read tag do the same when their
 
 ## Reading names aloud
 
-Batch write, Inventory and Read tag can say the entry's name, so you can find the next thing without
-looking at the screen. Switch it on with the speaker button on each screen, or in Settings. Names are
-shortened to a quick cue: leading words like "box" or "bin" are skipped, reading stops at the first
+Batch write, Inventory, Add items and Read tag can say the entry's name, so you can find the next thing
+without looking at the screen. Switch it on with the "Read names aloud" switch on each screen, or in
+Settings. Names are shortened to a quick cue: leading words like "item", "box" or "bin" are skipped
+(so "Item 3f9c" is read as "3f9c"), reading stops at the first
 symbol, and long names stop at the last whole word within 20 characters, so
 "Box 12 - Christmas lights" is read as "12". All of this can be changed in Settings, where you can
-also try a name to hear how it comes out. It uses the phone's text-to-speech engine.
+also try a name to hear how it comes out. It uses the phone's text-to-speech engine, with an
+**Extra loudness** setting (+9 dB by default) that boosts speech above the media volume for noisy places.
+
+The screen stays in portrait by default, so it doesn't flip around while you turn the phone to reach
+tags. Switch off **Keep the screen upright** in Settings to follow the phone's auto-rotate instead.
 
 ## Works without a connection
 

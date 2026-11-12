@@ -59,7 +59,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.homeboxnfc.HomeboxNfcApplication
-import io.github.homeboxnfc.SpeakMode
 
 enum class Screen(val title: String) {
     HOME("Homebox NFC"),
@@ -104,7 +103,6 @@ fun App(activity: ComponentActivity, nfcAdapter: NfcAdapter?) {
                         }
                     },
                     actions = {
-                        speakModeFor(screen)?.let { SpeakAction(app, it) }
                         if (screen != Screen.SYNC && screen != Screen.WEB_LOGIN) SyncAction(app) { screen = Screen.SYNC }
                         if (screen == Screen.HOME) {
                             IconButton(onClick = { screen = Screen.SETTINGS }) {
@@ -136,27 +134,6 @@ fun App(activity: ComponentActivity, nfcAdapter: NfcAdapter?) {
                 }
             }
         }
-    }
-}
-
-private fun speakModeFor(screen: Screen): SpeakMode? = when (screen) {
-    Screen.BATCH -> SpeakMode.BATCH
-    Screen.INVENTORY -> SpeakMode.INVENTORY
-    Screen.READ -> SpeakMode.READ
-    else -> null
-}
-
-/** Top-bar switch for reading names aloud on this screen (remembered per screen). */
-@Composable
-private fun SpeakAction(app: HomeboxNfcApplication, mode: SpeakMode) {
-    val enabled by app.speaker.enabled.collectAsStateWithLifecycle()
-    val on = mode in enabled
-    LaunchedEffect(mode) { app.speaker.prepare(mode) }
-    IconButton(onClick = { app.speaker.setOn(mode, !on) }) {
-        Icon(
-            if (on) SpeakerIcons.On else SpeakerIcons.Off,
-            contentDescription = if (on) "Stop reading names aloud" else "Read names aloud",
-        )
     }
 }
 

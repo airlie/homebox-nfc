@@ -1,6 +1,7 @@
 package io.github.homeboxnfc
 
 import android.nfc.NfcAdapter
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,6 +15,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        applyOrientation()
         nfc = NfcAdapter.getDefaultAdapter(this)
         setContent { App(activity = this, nfcAdapter = nfc) }
     }
@@ -32,6 +34,12 @@ class MainActivity : ComponentActivity() {
                 NfcAdapter.FLAG_READER_NFC_F or NfcAdapter.FLAG_READER_NFC_V,
             extras,
         )
+    }
+
+    /** Portrait only if the "Keep the screen upright" setting is on; otherwise follow the phone. */
+    fun applyOrientation() {
+        val lock = (application as HomeboxNfcApplication).prefs.lockPortrait
+        requestedOrientation = if (lock) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
     override fun onPause() {
