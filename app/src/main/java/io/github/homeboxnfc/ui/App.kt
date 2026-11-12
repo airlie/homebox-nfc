@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
@@ -63,6 +64,7 @@ import io.github.homeboxnfc.SpeakMode
 enum class Screen(val title: String) {
     HOME("Homebox NFC"),
     WRITE_ONE("Write one tag"),
+    ADD("Add items"),
     BATCH("Batch write"),
     INVENTORY("Inventory"),
     READ("Read tag"),
@@ -122,6 +124,7 @@ fun App(activity: ComponentActivity, nfcAdapter: NfcAdapter?) {
                     when (screen) {
                         Screen.HOME -> HomeScreen(app) { screen = it }
                         Screen.WRITE_ONE -> WriteOneScreen(app)
+                        Screen.ADD -> AddScreen(app)
                         Screen.BATCH -> BatchScreen(app)
                         Screen.INVENTORY -> InventoryScreen(app)
                         Screen.READ -> ReadTagScreen(app)
@@ -229,6 +232,9 @@ private fun HomeScreen(app: HomeboxNfcApplication, navigate: (Screen) -> Unit) {
                 ?.let { "In progress: ${it.rootName}, ${it.index + 1} of ${it.items.size}. Tap to resume." }
                 ?: "Write tags for everything in a location that doesn't have one yet.",
         ) { navigate(Screen.BATCH) }
+        MenuItem(Icons.Filled.Add, "Add items", "Tap blank tags to add new items to Homebox, one or a whole batch.") {
+            navigate(Screen.ADD)
+        }
         MenuItem(
             Icons.Filled.CheckCircle,
             "Inventory",

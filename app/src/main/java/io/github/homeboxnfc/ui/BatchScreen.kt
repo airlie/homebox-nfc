@@ -169,7 +169,10 @@ private fun RunView(app: HomeboxNfcApplication, session: BatchSession, vm: Batch
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = vm::refresh) { Text("Refresh list") }
             TextButton(
-                onClick = { confirmEnd = true },
+                onClick = {
+                    // Nothing to lose when every entry was written: skip the "are you sure".
+                    if (current == null && session.items.all { it.id in session.done }) vm.endSession() else confirmEnd = true
+                },
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
             ) { Text("End run") }
         }

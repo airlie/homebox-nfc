@@ -93,7 +93,7 @@ class WriteOneViewModel(application: Application) : AndroidViewModel(application
 
     private fun identify(tag: Tag) {
         val read = try {
-            readTag(app, tag)
+            readTag(app, tag, fix = true)
         } catch (e: TagException) {
             say(e.message.orEmpty(), MessageKind.ERROR)
             return

@@ -4,14 +4,20 @@ An Android app for putting [Homebox](https://github.com/sysadminsmedia/homebox) 
 
 - **Write one tag**: search for an item or location, pick it, tap a tag.
 - **Batch write**: pick a Homebox location (or scan its tag). The app lists every entry under it that doesn't have a tag yet
-  and walks you through them one at a time. Tap a tag, it gets written and checked, and the next one comes
+  and walks you through them one at a time, in alphabetical order. Tap a tag, it gets written and checked, and the next one comes
   up. Progress is saved after every tag, so you can stop and pick up later.
+- **Add items**: for things that aren't in Homebox yet. Pick a location (or scan its tag), then tap
+  blank tags: each one creates a new item there and gets written with its link. Type a name first,
+  or leave it empty for a short automatic one like "Item 3f9c" to rename later. Tap one tag to add
+  one item, or keep going for a batch. A switch opens the camera after each tag, and the photo is
+  added to the item in Homebox. This mode needs a connection, since Homebox gives each new item its ID.
 - **Inventory**: scan a location tag (or pick a location), then scan item tags. Items Homebox already
   has at that location are marked verified. Items it had somewhere else are moved here, with an Undo
   button. Each scanned item gets today's date in a **Location verified** field, plus the NFC tag and
   field if they were missing. The screen also lists the tagged items Homebox expects here that you
   haven't scanned. If you scan another location tag (say a box set up as a location), you can switch
-  to it or put that box inside the previous location.
+  to it or put that box inside the previous location. A switch ("Fix tags as they're scanned", on by
+  default) does what Fix tag does to each tag scanned.
 - **Read tag**: tap any tag to see what it holds. For a Homebox tag, that's the entry's name, where
   it is, and its **NFC Tag** and **Location verified** fields (from Homebox if it's reachable,
   otherwise from the saved data). For anything else, a plain list of the tag's records, its type and
@@ -24,10 +30,9 @@ An Android app for putting [Homebox](https://github.com/sysadminsmedia/homebox) 
 ## Moving Homebox to a new address
 
 Change the address in Settings and the old one is remembered under **Previous addresses** (you can
-also add or remove addresses there by hand). Whenever Write one tag, Batch write, Inventory or Fix
-tag reads a tag that links to a previous address, it rewrites the link to the current address in
-the same tap and keeps the tag's other records. Read tag only points it out, unless its fix switch
-is on. Locked tags, or tags too small for the new link, are left alone and the app says so.
+also add or remove addresses there by hand). Whenever Write one tag, Batch write or Fix tag reads a
+tag that links to a previous address, it rewrites the link to the current address in the same tap
+and keeps the tag's other records. Inventory and Read tag do the same when their fix switch is on. Locked tags, or tags too small for the new link, are left alone and the app says so.
 
 ## Reading names aloud
 

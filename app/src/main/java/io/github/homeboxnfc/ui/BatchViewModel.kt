@@ -137,6 +137,7 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         collect(root.children, rootName)
+        queue.sortWith(compareBy(NaturalOrder) { it.name })
 
         val session = BatchSession(rootId, rootName, recursive, includeLocations, queue, 0, done)
         save(session)
@@ -177,7 +178,7 @@ class BatchViewModel(application: Application) : AndroidViewModel(application) {
     /** Before a run starts: a location's tag picks that location. */
     private fun selectByTag(tag: Tag) {
         val read = try {
-            readTag(app, tag)
+            readTag(app, tag, fix = true)
         } catch (e: TagException) {
             app.feedback.error()
             say(e.message.orEmpty(), MessageKind.ERROR)

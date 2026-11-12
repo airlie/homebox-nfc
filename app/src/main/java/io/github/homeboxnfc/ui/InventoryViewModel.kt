@@ -42,6 +42,8 @@ data class InventoryUi(
     val current: InvLocation? = null,
     val picking: Boolean = false,
     val acceptSubLocations: Boolean = true,
+    /** Fix tags (old address, app record) as they are scanned. */
+    val fixTags: Boolean = true,
     /** NFC-tagged items the saved data says are at the current location. */
     val expected: List<TreeNode> = emptyList(),
     /** Items scanned (and verified or moved) at the current location. */
@@ -72,7 +74,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     /** Set while handling a tag whose old Homebox address was just updated; added to the next message. */
     @Volatile private var updateNote = ""
 
-    private val _ui = MutableStateFlow(InventoryUi())
+    private val _ui = MutableStateFlow(InventoryUi(fixTags = prefs.inventoryFixTags))
     val ui: StateFlow<InventoryUi> = _ui.asStateFlow()
 
     init {
@@ -101,6 +103,11 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun showPicker(show: Boolean) = _ui.update { it.copy(picking = show) }
+
+    fun setFixTags(on: Boolean) {
+        prefs.inventoryFixTags = on
+        _ui.update { it.copy(fixTags = on) }
+    }
 
     fun pickLocation(option: LocationOption) {
         setLocation(InvLocation(option.node.id, option.node.name, option.path), viaScan = false)
@@ -133,14 +140,14 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     fun onTag(tag: Tag) {
         val uid = NfcTags.uid(tag)
         val read = try {
-            readTag(app, tag)
+            readTag(app, tag, fix = prefs.inventoryFixTags)
         } catch (e: TagException) {
             app.feedback.error()
             say(e.message.orEmpty(), MessageKind.ERROR)
             return
         }
         val url = read.url
-        updateNote = read.note
+        updateNote = if (prefs.inventoryFixTags) read.note else ""
         if (url == null) {
             app.feedback.error()
             say("That tag has no URL.", MessageKind.WARNING)

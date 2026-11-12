@@ -57,6 +57,12 @@ class Prefs(context: Context) {
     /** Read tag: fix tags as they are read (update an old address, add the app record). */
     var readAddsAar by bool("readAddsAar", false)
 
+    /** Inventory: fix tags as they are scanned (same as Fix tag). */
+    var inventoryFixTags by bool("inventoryFixTags", true)
+
+    /** Add: take a photo of each new item. */
+    var addPhoto by bool("addPhoto", false)
+
     // Reading names aloud: a switch per screen, plus how names get shortened.
     var speakBatch by bool("speakBatch", false)
     var speakInventory by bool("speakInventory", false)

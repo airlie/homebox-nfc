@@ -159,11 +159,20 @@ object NfcTags {
                         throw TagException("Too much data: needs $size bytes, the tag holds ${ndef.maxSize}.")
                     }
                     ndef.writeNdefMessage(message)
-                    val back = ndef.ndefMessage
-                    if (back == null || !back.toByteArray().contentEquals(message.toByteArray())) {
+                    // Check it landed. Some tags that were empty before can't be read back in the same
+                    // tap (Android returns nothing or errors); the write itself was acknowledged by the
+                    // tag, so only a read-back that shows different data counts as a failure.
+                    val back = try {
+                        ndef.ndefMessage
+                    } catch (e: IOException) {
+                        null
+                    } catch (e: FormatException) {
+                        null
+                    }
+                    if (back != null && !back.toByteArray().contentEquals(message.toByteArray())) {
                         throw TagException("Wrote the tag but the read-back didn't match. Try again.")
                     }
-                    parse(uid, back, ndef.isWritable, ndef.maxSize)
+                    parse(uid, back ?: message, ndef.isWritable, ndef.maxSize)
                 } finally {
                     closeQuietly(ndef)
                 }

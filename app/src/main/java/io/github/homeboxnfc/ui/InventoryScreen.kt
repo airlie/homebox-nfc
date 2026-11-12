@@ -68,6 +68,12 @@ fun InventoryScreen(app: HomeboxNfcApplication, vm: InventoryViewModel = viewMod
                 ui.acceptSubLocations,
                 vm::setAcceptSubLocations,
             )
+            ToggleRow(
+                "Fix tags as they're scanned",
+                "Same as Fix tag: updates an old Homebox address and adds the app record",
+                ui.fixTags,
+                vm::setFixTags,
+            )
             SavedDataLine(app)
         }
 

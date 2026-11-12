@@ -75,36 +75,17 @@ class ReadTagViewModel(application: Application) : AndroidViewModel(application)
         // Read tag only changes tags when its "fix" switch is on; Fix tag always does.
         val fixing = fixMode || _addAar.value
         val read = try {
-            readTag(app, tag, updateOldAddress = fixing)
+            readTag(app, tag, fix = fixing)
         } catch (e: TagException) {
             app.feedback.error()
             add(TagReport(key, uid, null, null, emptyList(), "", emptyList(), error = e.message.orEmpty()))
             return
         }
-        var snap = read.snap
-        val notes = mutableListOf<String>()
-        if (read.updated) notes += "Updated the link to the current Homebox address."
-        read.updateError?.let { notes += "Links to an old Homebox address, but couldn't update it: $it" }
-
+        val snap = read.snap
         val url = read.url
         val pkg = app.prefs.aarPackage.trim()
+        val notes = (read.fixed + read.problems.map { if (fixing) it else "$it Fix tag would fix it." }).toMutableList()
         if (fixMode && url == null) notes += "No link on this tag, so there's nothing to fix."
-        if (!fixing && url != null) {
-            // Just say what could be fixed.
-            if (app.homebox.currentAddressFor(url) != null) notes += "Links to a previous Homebox address. Fix tag would update it."
-            if (pkg.isNotBlank() && !snap.hasAar(pkg)) notes += "Doesn't have the app record ($pkg). Fix tag would add it."
-        }
-        if (fixing && url != null && pkg.isNotBlank() && !snap.hasAar(pkg) && snap.isWritable) {
-            val withAar = snap.message?.let { NfcTags.withAar(it, pkg) }
-                ?.takeIf { snap.maxSize == 0 || it.byteArrayLength <= snap.maxSize }
-            notes += try {
-                snap = NfcTags.write(tag, withAar ?: NfcTags.buildMessage(url, pkg)).copy(techs = snap.techs)
-                if (withAar == null && read.snap.recordCount > 1) "Added the app record ($pkg). No room for the other records."
-                else "Added the app record ($pkg)."
-            } catch (e: TagException) {
-                "Couldn't add the app record: ${e.message}"
-            }
-        }
 
         if (fixMode && notes.isEmpty()) {
             notes += when {
@@ -137,7 +118,7 @@ class ReadTagViewModel(application: Application) : AndroidViewModel(application)
         }.filter { it.isNotBlank() }.joinToString(" · ")
 
         val records = snap.message?.records.orEmpty().map { NfcTags.describe(it) }
-        if (read.updateError != null || notes.any { it.startsWith("Couldn't") }) app.feedback.warning() else app.feedback.success()
+        if (fixing && read.problems.isNotEmpty()) app.feedback.warning() else app.feedback.success()
         if (!fixMode) entry?.name?.let { app.speaker.speak(SpeakMode.READ, it) }
         add(TagReport(key, snap.uid, url, entry, records, facts, notes))
         if (entry != null) fetchLive(key, entry.id)

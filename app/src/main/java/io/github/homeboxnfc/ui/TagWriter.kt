@@ -23,7 +23,7 @@ class TagWriter(private val app: HomeboxNfcApplication) {
     @Volatile private var armedOverwriteUid: String? = null
 
     /** Called on the NFC thread while the tag is in the field. */
-    fun write(tag: Tag, entryId: String, isLocation: Boolean, name: String): Result {
+    fun write(tag: Tag, entryId: String, isLocation: Boolean, name: String, force: Boolean = false): Result {
         val uid = NfcTags.uid(tag)
         if (uid == lastWrittenUid) return Result.SameAsLast
         val prefs = app.prefs
@@ -37,7 +37,7 @@ class TagWriter(private val app: HomeboxNfcApplication) {
             val existing = snap.url
             // A link to this same entry (even at a previous Homebox address) is fine to replace without asking.
             val sameEntry = existing != null && app.homebox.parseEntityUrl(existing)?.second == entryId
-            if (!alreadyThere && existing != null && !sameEntry && uid != armedOverwriteUid) {
+            if (!force && !alreadyThere && existing != null && !sameEntry && uid != armedOverwriteUid) {
                 armedOverwriteUid = uid
                 val what = if (app.homebox.isHomeboxUrl(existing)) {
                     val id = app.homebox.parseEntityUrl(existing)?.second
@@ -66,7 +66,7 @@ class TagWriter(private val app: HomeboxNfcApplication) {
      * Queues "this entry now has an NFC tag" for Homebox: the NFC tag, the tag's UID, and
      * today's date as last verified (you're standing next to it, so it's where it should be).
      */
-    fun queueMark(entryId: String, name: String, uid: String) {
+    fun queueMark(entryId: String, name: String, uid: String, parentId: String? = null) {
         val prefs = app.prefs
         val store = app.store
         val fields = buildMap {
@@ -80,6 +80,7 @@ class TagWriter(private val app: HomeboxNfcApplication) {
                 summary = "Tag written",
                 addTag = prefs.nfcTagName,
                 setFields = fields,
+                parentId = parentId,
             )
         )
     }

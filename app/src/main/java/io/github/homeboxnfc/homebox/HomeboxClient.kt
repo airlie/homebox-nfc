@@ -8,6 +8,7 @@ import io.github.homeboxnfc.data.SecretStore
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONException
@@ -202,6 +203,23 @@ class HomeboxClient(
         call("PATCH", "/entities/${enc(id)}", body)
     }
 
+    /** Creates an item (Homebox's default entry type) inside [parentId]. Returns the new id. */
+    fun createItem(name: String, parentId: String): String = JSONObject(
+        call("POST", "/entities", JSONObject().put("name", name).put("parentId", parentId))
+    ).getString("id")
+
+    /** Uploads a JPEG as the entry's primary photo. */
+    fun uploadPhoto(id: String, file: java.io.File) {
+        val body = okhttp3.MultipartBody.Builder()
+            .setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart("name", file.name)
+            .addFormDataPart("type", "photo")
+            .addFormDataPart("primary", "true")
+            .addFormDataPart("file", file.name, file.asRequestBody("image/jpeg".toMediaType()))
+            .build()
+        call("POST", "/entities/${enc(id)}/attachments", raw = body)
+    }
+
     /** Sets custom text fields (adding them if missing) while preserving everything else. */
     fun setTextFields(id: String, values: Map<String, String>) {
         if (values.isEmpty()) return
@@ -245,7 +263,13 @@ class HomeboxClient(
 
     // ---- plumbing -----------------------------------------------------------------------
 
-    private fun call(method: String, path: String, body: JSONObject? = null, auth: Boolean = true): String {
+    private fun call(
+        method: String,
+        path: String,
+        body: JSONObject? = null,
+        auth: Boolean = true,
+        raw: okhttp3.RequestBody? = null,
+    ): String {
         if (baseUrl.isBlank()) {
             throw HomeboxException("Set your Homebox address in Settings first.", HomeboxException.Kind.NOT_CONFIGURED)
         }
@@ -273,6 +297,7 @@ class HomeboxClient(
         }
 
         val requestBody = when {
+            raw != null -> raw
             body != null -> body.toString().toByteArray(Charsets.UTF_8).toRequestBody(json)
             method in setOf("POST", "PUT", "PATCH") -> ByteArray(0).toRequestBody(json)
             else -> null
