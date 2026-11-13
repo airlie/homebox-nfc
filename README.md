@@ -135,7 +135,8 @@ Download the APK from [Releases](../../releases) (or from the latest Actions run
 
 ## Building
 
-CI builds the APK on every push (see `.github/workflows/build.yml`).
+CI builds the APK on every push (see `.github/workflows/build.yml`). [MAINTAINING.md](MAINTAINING.md)
+covers releasing, dependency updates and what to check after a Homebox upgrade.
 
 To build locally on Linux or WSL without Android Studio, `scripts/setup-build-tools.sh` installs JDK 17,
 the Android SDK and Gradle under `~/android` (no sudo). Its `--accept-licenses` flag accepts the Android

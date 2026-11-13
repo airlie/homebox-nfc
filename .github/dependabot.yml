@@ -1,0 +1,35 @@
+# Monthly update PRs for the app's libraries and the CI actions.
+# Updates are grouped so each month brings at most a few PRs, not one per library.
+# CI builds and tests each PR; merge it if the build passes and the app still works.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # Android Gradle plugin and Kotlin move together; keep them in one PR.
+      build-tools:
+        patterns:
+          - "com.android.*"
+          - "org.jetbrains.kotlin*"
+      androidx:
+        patterns:
+          - "androidx.*"
+      other-libraries:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "com.android.*"
+          - "org.jetbrains.kotlin*"
+          - "androidx.*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns:
+          - "*"
