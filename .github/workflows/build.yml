@@ -16,14 +16,14 @@ jobs:
     env:
       HAS_SIGNING_KEY: ${{ secrets.SIGNING_KEYSTORE_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Decode signing key
         if: env.HAS_SIGNING_KEY == 'true'
@@ -48,14 +48,14 @@ jobs:
           ./gradlew testReleaseUnitTest assembleRelease -PversionName="$VERSION_NAME" -PversionCode="$GITHUB_RUN_NUMBER"
           mv app/build/outputs/apk/release/app-release.apk "homebox-nfc-${VERSION_NAME}.apk"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: homebox-nfc-apk
           path: homebox-nfc-*.apk
 
       - name: Attach APK to release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: homebox-nfc-*.apk
           generate_release_notes: true
