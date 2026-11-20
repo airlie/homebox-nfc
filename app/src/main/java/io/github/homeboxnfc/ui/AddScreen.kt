@@ -73,6 +73,7 @@ fun AddScreen(app: HomeboxNfcApplication, vm: AddViewModel = viewModel()) {
                 "Adding needs a connection to Homebox, since Homebox gives each new item its ID.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
             )
             LocationHeader(app, "Add to", ui.location?.path, ui.picking || ui.location == null) { vm.showPicker(!ui.picking) }
         }

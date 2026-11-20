@@ -164,6 +164,9 @@ private fun NfcBanner(adapter: NfcAdapter?) {
         onPauseOrDispose { }
     }
     if (adapter != null && enabled) return
+    // Debug builds on the emulator (used for the README screenshots) have no NFC at all.
+    val debuggable = context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+    if (adapter == null && debuggable && android.os.Build.HARDWARE == "ranchu") return
     Card(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -217,7 +220,7 @@ private fun HomeScreen(app: HomeboxNfcApplication, navigate: (Screen) -> Unit) {
             "Inventory",
             "Scan a location, then items. Items are verified, or moved here if Homebox had them elsewhere.",
         ) { navigate(Screen.INVENTORY) }
-        MenuItem(Icons.Filled.Search, "Read tag", "See what a tag is for. Tags with an old Homebox address get updated.") {
+        MenuItem(Icons.Filled.Search, "Read tag", "See what a tag holds and what it's for. Doesn't change the tag.") {
             navigate(Screen.READ)
         }
         MenuItem(Icons.Filled.Build, "Fix tag", "Update an old Homebox address and add the app record, keeping the rest of the tag.") {

@@ -46,7 +46,7 @@ internal fun LocationHeader(
         leadingContent = { Icon(Icons.Filled.Place, contentDescription = null) },
         overlineContent = { Text(label) },
         headlineContent = { Text(path ?: "None picked", style = MaterialTheme.typography.titleLarge) },
-        supportingContent = if (path == null || picking) ({ Text(PICK_LOCATION_HINT) }) else null,
+        supportingContent = if (path == null) ({ Text(PICK_LOCATION_HINT) }) else null,
         trailingContent = if (path != null && onTogglePicker != null) {
             { TextButton(onClick = onTogglePicker) { Text(if (picking) "Cancel" else "Change") } }
         } else {

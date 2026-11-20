@@ -41,6 +41,19 @@ object NfcTags {
 
     fun uid(tag: Tag): String = tag.id.joinToString(":") { "%02X".format(it) }
 
+    /** Whether [tag] is still in range. Blocks briefly; call off the main thread. */
+    fun isPresent(tag: Tag): Boolean {
+        val tech: android.nfc.tech.TagTechnology = Ndef.get(tag) ?: android.nfc.tech.NfcA.get(tag) ?: return false
+        return try {
+            tech.connect()
+            true
+        } catch (e: Exception) {
+            false // gone (IOException), or seen again since (SecurityException: tag out of date)
+        } finally {
+            runCatching { tech.close() }
+        }
+    }
+
     /**
      * The record set this app writes: the URL (always first, since Android dispatches on the
      * first record), optionally a text record with [label], then optionally an Android

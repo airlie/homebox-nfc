@@ -83,6 +83,24 @@ Changes to the Access application (policies, sign-in method, session length) can
 again under *Settings* in the app. No code change is needed unless Access changes how it hands
 out the `CF_Authorization` cookie.
 
+## Retaking the README screenshots
+
+The screenshots in `docs/screenshots/` come from the Android emulator and Homebox's demo data, so
+they show no real inventory.
+
+1. Run the demo Homebox:
+   `docker run -d --name hbnfc-demo -p 127.0.0.1:7745:7745 -e HBOX_DEMO=true -e HBOX_AUTH_API_KEY_PEPPER="$(openssl rand -base64 48)" ghcr.io/sysadminsmedia/homebox:latest`
+   (the demo login is shown on its web page at http://localhost:7745).
+2. Start an emulator and install a **debug** build (`./gradlew installDebug`). Debug builds allow
+   plain HTTP and hide the "no NFC" banner on the emulator.
+3. In the app's Settings, use the address `http://10.0.2.2:7745`, Cloudflare Access "None", and log in.
+4. For a clean status bar, turn on the system UI demo mode
+   (`adb shell settings put global sysui_demo_allowed 1`, then
+   `adb shell am broadcast -a com.android.systemui.demo -e command enter`).
+5. Capture with `adb exec-out screencap -p > shot.png`, then scale to 540 px wide.
+
+The emulator can't scan NFC, so only screens that don't need a tag can be captured this way.
+
 ## Local builds
 
 `scripts/setup-build-tools.sh` sets up JDK, Android SDK and Gradle on Linux or WSL (see the

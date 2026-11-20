@@ -32,6 +32,24 @@ An Android app for putting [Homebox](https://github.com/sysadminsmedia/homebox) 
   current one and the Android Application Record (AAR) is added if it's missing. Everything else
   on the tag is kept.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/home.png" width="240" alt="Home screen listing the six modes"><br>Home</td>
+    <td align="center"><img src="docs/screenshots/batch_setup.png" width="240" alt="Batch write: switches, then the chosen location and the location list"><br>Batch write: pick a location</td>
+    <td align="center"><img src="docs/screenshots/batch_run.png" width="240" alt="Batch write run: tap a tag for Bike pump, 1 of 6"><br>Batch write: tap a tag for each entry</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/inventory.png" width="240" alt="Inventory at Garage: found 0 of 5 tagged items, with the missing ones listed"><br>Inventory</td>
+    <td align="center"><img src="docs/screenshots/add.png" width="240" alt="Add items: read-aloud and photo switches, a name field, adding to Garage"><br>Add items</td>
+    <td align="center"><img src="docs/screenshots/settings_speech.png" width="240" alt="Read names aloud settings, with Box 12 - Christmas lights and ornaments read as 12"><br>Read names aloud settings</td>
+  </tr>
+</table>
+
+Taken on the Android emulator against Homebox's demo data (with a few garage items added).
+The emulator has no NFC, so scanning screens aren't shown.
+
 ## Screen layout
 
 Batch write, Inventory and Add items share one layout: the mode's switches at the top, then the

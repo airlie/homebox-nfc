@@ -10,6 +10,7 @@ import io.github.homeboxnfc.homebox.HomeboxException
 import io.github.homeboxnfc.nfc.NfcTags
 import io.github.homeboxnfc.nfc.TagException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -72,7 +73,6 @@ class AddViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             store.view.collect { v -> _ui.update { it.copy(locations = v?.index?.locationOptions.orEmpty()) } }
         }
-        say(PICK_LOCATION_HINT, MessageKind.INFO)
         store.refreshIfOlderThan(60_000)
     }
 
@@ -162,11 +162,15 @@ class AddViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(
                         name = "",
                         added = (listOf(item) + it.added).take(100),
-                        photoRequest = if (takePhoto) PhotoRequest(key, photoFile(id)) else null,
                     )
                 }
                 app.speaker.speak(SpeakMode.ADD, name)
-                say("✓ Added $name to ${loc.name}." + if (takePhoto) " Take its photo." else " Tap another blank tag to add more.", MessageKind.SUCCESS)
+                say(
+                    "✓ Added $name to ${loc.name}." +
+                        if (takePhoto) " Take the phone away from the tag to open the camera." else " Tap another blank tag to add more.",
+                    MessageKind.SUCCESS,
+                )
+                if (takePhoto) openCameraWhenTagRemoved(tag, PhotoRequest(key, photoFile(id)))
             }
             is TagWriter.Result.SameAsLast -> {
                 app.feedback.warning()
@@ -184,6 +188,26 @@ class AddViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ---- photos ---------------------------------------------------------------------------
+
+    /**
+     * Opening the camera pauses the app, which stops it catching tags. If the tag just written
+     * were still against the phone, Android would then open its link in the browser. So wait
+     * until the tag is out of range first.
+     */
+    private fun openCameraWhenTagRemoved(tag: Tag, request: PhotoRequest) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val deadline = System.currentTimeMillis() + 120_000
+            while (NfcTags.isPresent(tag)) {
+                if (System.currentTimeMillis() > deadline) {
+                    setPhoto(request.itemKey, PhotoState.NONE, null)
+                    say("Photo skipped because the tag stayed in range. Use the Photo button to add one.", MessageKind.INFO)
+                    return@launch
+                }
+                delay(250)
+            }
+            _ui.update { it.copy(photoRequest = request) }
+        }
+    }
 
     /** The request the camera is open for (kept here so it survives the screen being rebuilt). */
     @Volatile private var awaiting: PhotoRequest? = null

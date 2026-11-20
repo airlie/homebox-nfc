@@ -89,7 +89,6 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
         }
-        say(PICK_LOCATION_HINT, MessageKind.INFO)
         store.refreshIfOlderThan(60_000)
     }
 
@@ -119,7 +118,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         val missing = s.missing.size
         say(
             "Finished ${loc.name}: found ${s.foundExpectedCount} of ${s.expected.size} expected" +
-                (if (missing > 0) ", $missing not seen." else ".") + " " + PICK_LOCATION_HINT,
+                (if (missing > 0) ", $missing not seen." else "."),
             MessageKind.SUCCESS,
         )
     }
